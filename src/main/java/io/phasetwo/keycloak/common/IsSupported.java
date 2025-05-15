@@ -7,7 +7,6 @@ import org.keycloak.provider.EnvironmentDependentProviderFactory;
 
 public interface IsSupported extends EnvironmentDependentProviderFactory {
 
-  @Override
   default boolean isSupported() {
     return isJpaCacheEnabled();
   }

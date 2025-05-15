@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <main.java.package>io.phasetwo.keycloak.jpacache</main.java.package>
     <junit.version>5.8.2</junit.version>
-    <keycloak.version>24.0.2</keycloak.version>
+    <keycloak.version>26.2.4</keycloak.version>
     <lombok.version>1.18.30</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
     <testcontainers-keycloak.version>1.17.6</testcontainers-keycloak.version>

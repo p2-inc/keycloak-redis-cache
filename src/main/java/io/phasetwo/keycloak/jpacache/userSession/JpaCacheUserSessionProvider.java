@@ -542,7 +542,7 @@ public class JpaCacheUserSessionProvider implements UserSessionProvider {
     return getUserSessionsStream(realm, user).filter(s -> s.isOffline());
   }
 
-  @Override
+  //  @Override
   public UserSessionModel getOfflineUserSessionByBrokerSessionId(
       RealmModel realm, String brokerSessionId) {
     log.tracef(

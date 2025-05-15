@@ -1,19 +1,3 @@
-/*
- * Copyright 2023 IT-Systemhaus der Bundesagentur fuer Arbeit
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- */
-
 package io.phasetwo.keycloak.compatibility;
 
 import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
@@ -21,9 +5,12 @@ import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.CompletionStage;
 import lombok.extern.jbosslog.JBossLog;
 import org.infinispan.Cache;
 import org.infinispan.client.hotrod.RemoteCache;
+import org.infinispan.util.concurrent.BlockingManager;
 import org.keycloak.Config;
 import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
 import org.keycloak.connections.infinispan.InfinispanConnectionProviderFactory;
@@ -43,6 +30,21 @@ public class NullQuarkusInfinispanConnectionProviderFactory
         InfinispanConnectionProvider.class,
         () ->
             new InfinispanConnectionProvider() {
+              @Override
+              public CompletionStage<Void> migrateToProtoStream() {
+                return null;
+              }
+
+              @Override
+              public BlockingManager getBlockingManager() {
+                return null;
+              }
+
+              @Override
+              public ScheduledExecutorService getScheduledExecutor() {
+                return null;
+              }
+
               @Override
               public <K, V> Cache<K, V> getCache(String s) {
                 return null;
