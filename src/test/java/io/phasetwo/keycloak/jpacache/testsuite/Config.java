@@ -32,8 +32,6 @@ import org.keycloak.common.util.SystemEnvProperties;
  */
 public class Config implements ConfigProvider {
 
-  private final Properties systemProperties = new SystemEnvProperties();
-
   private final Map<String, String> defaultProperties = new HashMap<>();
   private final ThreadLocal<Map<String, String>> properties =
       new ThreadLocal<Map<String, String>>() {
@@ -146,12 +144,17 @@ public class Config implements ConfigProvider {
     return getConfig().get(spiName + ".provider");
   }
 
+  @Override
+  public String getDefaultProvider(String spiName) {
+    return getConfig().get(spiName + ".provider.default");
+  }
+
   public Map<String, String> getConfig() {
     return useGlobalConfigurationFunc.getAsBoolean() ? defaultProperties : properties.get();
   }
 
   private String replaceProperties(String value) {
-    return StringPropertyReplacer.replaceProperties(value, systemProperties);
+    return StringPropertyReplacer.replaceProperties(value, SystemEnvProperties.UNFILTERED::getProperty);
   }
 
   @Override

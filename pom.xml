@@ -166,6 +166,8 @@
             <log4j.configuration>file:${project.build.directory}/test-classes/log4j.properties</log4j.configuration> <!-- for the logging to properly work with tests in the 'other' module -->
             <keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>${keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase}</keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>
             <keycloak.profile.feature.authorization>disabled</keycloak.profile.feature.authorization>
+            <keycloak.profile.feature.organization>disabled</keycloak.profile.feature.organization>
+            <keycloak.profile.feature.admin-fine-grained-authz-v2>disabled</keycloak.profile.feature.admin-fine-grained-authz-v2>
             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
             <org.jboss.logging.provider>log4j</org.jboss.logging.provider>
             <argLine>-Djava.awt.headless=true ${surefire.memory.settings} ${surefire.system.args}
