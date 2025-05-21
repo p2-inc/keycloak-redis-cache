@@ -250,7 +250,7 @@ public abstract class KeycloakModelTest {
                                         return Class.forName(
                                                 cn.indexOf('.') >= 0
                                                         ? cn
-                                                        : ("de.arbeitsagentur.opdt.keycloak.cassandra.testsuite.parameters."
+                                                        : ("io.phasetwo.keycloak.jpacache.testsuite.parameters."
                                                                 + cn));
                                     } catch (Exception e) {
                                         LOG.error("Cannot find " + cn);
