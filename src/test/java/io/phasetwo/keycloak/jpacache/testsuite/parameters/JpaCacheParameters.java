@@ -3,12 +3,10 @@ package io.phasetwo.keycloak.jpacache.testsuite.parameters;
 import com.google.common.collect.ImmutableSet;
 import io.phasetwo.keycloak.compatibility.MapPublicKeyStorageProviderFactory;
 import io.phasetwo.keycloak.jpacache.*;
-import io.phasetwo.keycloak.jpacache.authSession.JpaCacheAuthSessionProviderFactory;
-import io.phasetwo.keycloak.jpacache.loginFailure.JpaCacheLoginFailureProviderFactory;
 import io.phasetwo.keycloak.jpacache.singleUseObject.JpaCacheSingleUseObjectProviderFactory;
 import io.phasetwo.keycloak.jpacache.testsuite.Config;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelParameters;
-import io.phasetwo.keycloak.jpacache.userSession.JpaCacheUserSessionProviderFactory;
+
 import java.util.Set;
 import org.keycloak.authorization.jpa.store.JPAAuthorizationStoreFactory;
 import org.keycloak.broker.provider.IdentityProviderFactory;
@@ -124,12 +122,8 @@ public class JpaCacheParameters extends KeycloakModelParameters {
           .add(ImportedRsaEncKeyProviderFactory.class)
           .add(ImportedRsaKeyProviderFactory.class)
           .add(JPAAuthorizationStoreFactory.class)
-          .add(JpaCacheAuthSessionProviderFactory.class)
           .add(JpaCacheDatastoreProviderFactory.class)
-          .add(JpaCacheEntityProviderFactory.class)
-          .add(JpaCacheLoginFailureProviderFactory.class)
           .add(JpaCacheSingleUseObjectProviderFactory.class)
-          .add(JpaCacheUserSessionProviderFactory.class)
           .add(JpaClientProviderFactory.class)
           .add(JpaClientScopeProviderFactory.class)
           .add(JpaEventStoreProviderFactory.class)

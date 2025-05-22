@@ -18,8 +18,7 @@ public class JpaCacheSingleUseObjectProviderFactory
 
   @Override
   public JpaCacheSingleUseObjectProvider create(KeycloakSession session) {
-    EntityManager em = session.getProvider(JpaConnectionProvider.class).getEntityManager();
-    return new JpaCacheSingleUseObjectProvider(session, em);
+    return new JpaCacheSingleUseObjectProvider(session);
   }
 
   @Override
