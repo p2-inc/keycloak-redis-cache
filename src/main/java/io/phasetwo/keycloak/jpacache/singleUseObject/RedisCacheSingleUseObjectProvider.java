@@ -2,19 +2,20 @@ package io.phasetwo.keycloak.jpacache.singleUseObject;
 
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 
-import jakarta.persistence.EntityManager;
-
 import java.util.Map;
 
+import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.SingleUseObjectProvider;
+import redis.clients.jedis.JedisCluster;
 
 @JBossLog
 @RequiredArgsConstructor
-public class JpaCacheSingleUseObjectProvider implements SingleUseObjectProvider {
+public class RedisCacheSingleUseObjectProvider implements SingleUseObjectProvider {
   private final KeycloakSession session;
+  private final JedisCluster jedisClusterCluster;
 
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {

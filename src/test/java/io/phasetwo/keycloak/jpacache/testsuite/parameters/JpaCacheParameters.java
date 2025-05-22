@@ -3,7 +3,7 @@ package io.phasetwo.keycloak.jpacache.testsuite.parameters;
 import com.google.common.collect.ImmutableSet;
 import io.phasetwo.keycloak.compatibility.MapPublicKeyStorageProviderFactory;
 import io.phasetwo.keycloak.jpacache.*;
-import io.phasetwo.keycloak.jpacache.singleUseObject.JpaCacheSingleUseObjectProviderFactory;
+import io.phasetwo.keycloak.jpacache.singleUseObject.RedisCacheSingleUseObjectProviderFactory;
 import io.phasetwo.keycloak.jpacache.testsuite.Config;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelParameters;
 
@@ -122,8 +122,8 @@ public class JpaCacheParameters extends KeycloakModelParameters {
           .add(ImportedRsaEncKeyProviderFactory.class)
           .add(ImportedRsaKeyProviderFactory.class)
           .add(JPAAuthorizationStoreFactory.class)
-          .add(JpaCacheDatastoreProviderFactory.class)
-          .add(JpaCacheSingleUseObjectProviderFactory.class)
+          .add(RedisCacheDatastoreProviderFactory.class)
+          .add(RedisCacheSingleUseObjectProviderFactory.class)
           .add(JpaClientProviderFactory.class)
           .add(JpaClientScopeProviderFactory.class)
           .add(JpaEventStoreProviderFactory.class)

@@ -68,6 +68,7 @@
     <jdbc.mvn.version>2.2.224</jdbc.mvn.version>
     <jacoco.skip>true</jacoco.skip>
     <smallrye.jandex.version>3.0.5</smallrye.jandex.version>
+    <keycloak.jedis>6.0.0</keycloak.jedis>
     <keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>false</keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>
   </properties>
 
@@ -266,7 +267,11 @@
       <artifactId>keycloak-core</artifactId>
       <version>${keycloak.version}</version>
     </dependency>
-
+    <dependency>
+      <groupId>redis.clients</groupId>
+      <artifactId>jedis</artifactId>
+      <version>${keycloak.jedis}</version>
+    </dependency>
     
     <!-- javax/jakarta apis -->
     <dependency>

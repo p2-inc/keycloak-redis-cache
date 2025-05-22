@@ -1,24 +1,26 @@
 package io.phasetwo.keycloak.jpacache.singleUseObject;
 
 import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
+import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
-import jakarta.persistence.EntityManager;
+import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProvider;
 import org.keycloak.Config;
-import org.keycloak.connections.jpa.JpaConnectionProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.SingleUseObjectProviderFactory;
 
 @SuppressWarnings("rawtypes")
 @AutoService(SingleUseObjectProviderFactory.class)
-public class JpaCacheSingleUseObjectProviderFactory
-    implements SingleUseObjectProviderFactory<JpaCacheSingleUseObjectProvider>, IsSupported {
+public class RedisCacheSingleUseObjectProviderFactory
+    implements SingleUseObjectProviderFactory<RedisCacheSingleUseObjectProvider>, IsSupported {
 
   @Override
-  public JpaCacheSingleUseObjectProvider create(KeycloakSession session) {
-    return new JpaCacheSingleUseObjectProvider(session);
+  public RedisCacheSingleUseObjectProvider create(KeycloakSession session) {
+    RedisConnectionProvider redisConnectionProvider =
+            createProviderCached(session, RedisConnectionProvider.class);
+    return new RedisCacheSingleUseObjectProvider(session, redisConnectionProvider.geJedisCluster());
   }
 
   @Override
