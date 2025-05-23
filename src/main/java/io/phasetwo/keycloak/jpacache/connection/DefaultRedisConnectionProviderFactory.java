@@ -7,6 +7,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
 import redis.clients.jedis.HostAndPort;
+import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 
 import java.util.Arrays;
@@ -20,15 +21,15 @@ public class DefaultRedisConnectionProviderFactory
                 EnvironmentDependentProviderFactory {
     public static final String PROVIDER_ID = "default";
 
-    private JedisCluster jedisCluster;
+    private Jedis jedis;
 
     @Override
     public RedisConnectionProvider create(KeycloakSession session) {
         return new RedisConnectionProvider() {
 
             @Override
-            public JedisCluster geJedisCluster() {
-                return jedisCluster;
+            public Jedis getJedis() {
+                return jedis;
             }
 
             @Override
@@ -39,17 +40,13 @@ public class DefaultRedisConnectionProviderFactory
     @Override
     public void init(Config.Scope scope) {
 
-        String contactPoints = scope.get("contactPoints");
-        log.infov("Init CassandraProviderFactory with contactPoints {0}", contactPoints);
+        String contactPoints = scope.get("contactPoint");
 
         int port = Integer.parseInt(scope.get("port"));
         String username = scope.get("username");
         String password = scope.get("password");
 
-        Set<HostAndPort> nodes = Arrays.stream(contactPoints.split(","))
-                .map(cp -> new HostAndPort(cp, port))
-                .collect(Collectors.toSet());
-        jedisCluster = new JedisCluster(nodes, username, password);
+        jedis = new Jedis(new HostAndPort(contactPoints, port));
     }
 
     @Override
@@ -67,6 +64,6 @@ public class DefaultRedisConnectionProviderFactory
 
     @Override
     public void close() {
-        jedisCluster.close();
+        jedis.close();
     }
 }

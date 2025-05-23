@@ -20,7 +20,7 @@ public class RedisCacheSingleUseObjectProviderFactory
   public RedisCacheSingleUseObjectProvider create(KeycloakSession session) {
     RedisConnectionProvider redisConnectionProvider =
             createProviderCached(session, RedisConnectionProvider.class);
-    return new RedisCacheSingleUseObjectProvider(session, redisConnectionProvider.geJedisCluster());
+    return new RedisCacheSingleUseObjectProvider(session, redisConnectionProvider.getJedis());
   }
 
   @Override
