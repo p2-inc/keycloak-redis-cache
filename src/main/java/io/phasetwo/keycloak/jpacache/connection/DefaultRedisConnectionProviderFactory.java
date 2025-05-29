@@ -1,6 +1,7 @@
 package io.phasetwo.keycloak.jpacache.connection;
 
 import com.google.auto.service.AutoService;
+import io.phasetwo.keycloak.common.IsSupported;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
@@ -8,17 +9,12 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
 import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisCluster;
-
-import java.util.Arrays;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @JBossLog
 @AutoService(RedisConnectionProviderFactory.class)
 public class DefaultRedisConnectionProviderFactory
         implements RedisConnectionProviderFactory<RedisConnectionProvider>,
-                EnvironmentDependentProviderFactory {
+                EnvironmentDependentProviderFactory, IsSupported {
     public static final String PROVIDER_ID = "default";
 
     private Jedis jedis;
@@ -40,8 +36,10 @@ public class DefaultRedisConnectionProviderFactory
     @Override
     public void init(Config.Scope scope) {
 
+        log.trace("contactPoint: " + scope.get("contactPoint"));
         String contactPoints = scope.get("contactPoint");
 
+        log.trace("port: " + scope.get("port"));
         int port = Integer.parseInt(scope.get("port"));
         String username = scope.get("username");
         String password = scope.get("password");
@@ -55,11 +53,6 @@ public class DefaultRedisConnectionProviderFactory
     @Override
     public String getId() {
         return PROVIDER_ID;
-    }
-
-    @Override
-    public boolean isSupported(Config.Scope config) {
-        return true;
     }
 
     @Override

@@ -1,18 +1,18 @@
 package io.phasetwo.keycloak.common;
 
 public class CommunityProfiles {
-  private static final String ENV_JPA_CACHE_ENABLED = "KC_COMMUNITY_JPA_CACHE_ENABLED";
-  private static final String PROP_JPA_CACHE_ENABLED = "kc.community.jpa.cache.enabled";
+  private static final String ENV_REDIS_CACHE_ENABLED = "KC_COMMUNITY_REDIS_CACHE_ENABLED";
+  private static final String PROP_REDIS_CACHE_ENABLED = "kc.community.redis.cache.enabled";
 
-  private static final boolean isJpaCacheEnabled;
+  private static final boolean isRedisCacheEnabled;
 
   static {
-    isJpaCacheEnabled =
-        Boolean.parseBoolean(System.getenv(ENV_JPA_CACHE_ENABLED))
-            || Boolean.parseBoolean(System.getProperty(PROP_JPA_CACHE_ENABLED));
+    isRedisCacheEnabled =
+        Boolean.parseBoolean(System.getenv(ENV_REDIS_CACHE_ENABLED))
+            || Boolean.parseBoolean(System.getProperty(PROP_REDIS_CACHE_ENABLED));
   }
 
-  public static boolean isJpaCacheEnabled() {
-    return isJpaCacheEnabled;
+  public static boolean isRedisCacheEnabled() {
+    return isRedisCacheEnabled;
   }
 }

@@ -19,7 +19,7 @@ public class RedisCacheSingleUseObjectProvider implements SingleUseObjectProvide
 
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
-    log.tracef("put(%s)%s", key, getShortStackTrace());
+    log.tracef("put(%s)%s", key, notes);
     jedis.hset(key, notes);
   }
 
