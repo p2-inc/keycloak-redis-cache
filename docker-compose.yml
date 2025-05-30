@@ -13,6 +13,7 @@ services:
       - h2_data:/opt/keycloak/data
       - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT.jar
       - ${PWD}/external-lib/jedis-6.0.0.jar:/opt/keycloak/providers/jedis.jar  # should create a fat jar containing it...somehow
+      - ${PWD}/external-lib/commons-pool2-2.12.1.jar:/opt/keycloak/providers/commons-pool2.jar
     environment:
       KC_COMMUNITY_REDIS_CACHE_ENABLED: true
       KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"

@@ -7,8 +7,9 @@ import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
-import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
 @JBossLog
 @AutoService(RedisConnectionProviderFactory.class)
@@ -17,7 +18,7 @@ public class DefaultRedisConnectionProviderFactory
                 EnvironmentDependentProviderFactory, IsSupported {
     public static final String PROVIDER_ID = "default";
 
-    private Jedis jedis;
+    private static JedisPool jedisPool;
 
     @Override
     public RedisConnectionProvider create(KeycloakSession session) {
@@ -25,7 +26,7 @@ public class DefaultRedisConnectionProviderFactory
 
             @Override
             public Jedis getJedis() {
-                return jedis;
+                return jedisPool.getResource();
             }
 
             @Override
@@ -44,7 +45,40 @@ public class DefaultRedisConnectionProviderFactory
         String username = scope.get("username");
         String password = scope.get("password");
 
-        jedis = new Jedis(new HostAndPort(contactPoints, port));
+        int redisTimeout = 2000; // Connection timeout in milliseconds
+
+        initializePool(contactPoints, port, redisTimeout);
+    }
+
+    private static JedisPoolConfig buildPoolConfig() {
+        final JedisPoolConfig poolConfig = new JedisPoolConfig();
+        poolConfig.setMaxTotal(100);
+        poolConfig.setMaxIdle(50);
+        poolConfig.setMinIdle(10);
+        poolConfig.setMaxWaitMillis(3000);
+        poolConfig.setBlockWhenExhausted(true);
+        poolConfig.setTestOnBorrow(true);
+        poolConfig.setTestWhileIdle(true);
+        poolConfig.setTimeBetweenEvictionRunsMillis(60000);
+        poolConfig.setMinEvictableIdleTimeMillis(300000);
+        poolConfig.setNumTestsPerEvictionRun(-1);
+        return poolConfig;
+    }
+
+    // Method to get a Jedis instance from the pool
+    public static Jedis getJedis() {
+        if (jedisPool == null) {
+            throw new IllegalStateException("JedisPool not initialized. Call initializePool() first.");
+        }
+        return jedisPool.getResource();
+    }
+
+    public static void initializePool(String host, int port, int timeout) {
+        if (jedisPool == null) {
+            JedisPoolConfig poolConfig = buildPoolConfig();
+            jedisPool = new JedisPool(poolConfig, host, port, timeout);
+            log.info("JedisPool initialized successfully for Redis at " + host + ":" + port);
+        }
     }
 
     @Override
@@ -57,6 +91,9 @@ public class DefaultRedisConnectionProviderFactory
 
     @Override
     public void close() {
-        jedis.close();
+        if (jedisPool != null) {
+            jedisPool.close();
+            jedisPool = null;
+        }
     }
 }
