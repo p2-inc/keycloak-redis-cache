@@ -2,113 +2,88 @@ package io.phasetwo.keycloak.jpacache.singleUseObject;
 
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
+import com.google.common.collect.Maps;
 import java.util.Map;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.SingleUseObjectProvider;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.params.HSetExParams;
 
 @JBossLog
 @RequiredArgsConstructor
 public class RedisCacheSingleUseObjectProvider implements SingleUseObjectProvider {
   private final KeycloakSession session;
-  private final Jedis jedis;
-  private final ObjectMapper objectMapper = new ObjectMapper(); // Reuse ObjectMapper
 
-  private byte[] serializeMapToJsonBytes(Map<String, String> map) throws JsonProcessingException {
-    return objectMapper.writeValueAsBytes(map);
+  private final Jedis jedis;
+
+  private static final String NULL_SENTINEL = "<null>";
+
+  /** Replace null values in the input map with a sentinel string. */
+  public static Map<String, String> stripNulls(Map<String, String> input) {
+    if (input == null || input.isEmpty()) return input;
+    return input.entrySet().stream()
+        .collect(
+            Collectors.toMap(
+                Map.Entry::getKey, e -> e.getValue() == null ? NULL_SENTINEL : e.getValue()));
   }
-  @SuppressWarnings("unchecked")
-  private Map<String, String> deserializeMap(byte[] bytes) throws IOException, ClassNotFoundException {
-    return objectMapper.readValue(bytes, new TypeReference<>() {
-    });
+
+  /** Replace sentinel values in the map with actual nulls. */
+  public static Map<String, String> convertNulls(Map<String, String> input) {
+    if (input == null || input.isEmpty()) return input;
+    Map<String, String> output = Maps.newHashMap();
+    for (Map.Entry<String, String> entry : input.entrySet()) {
+      if (entry.getValue() == null) {
+        output.put(entry.getKey(), null); // null is allowed here
+      } else if ("<null>".equals(entry.getValue())) {
+        output.put(entry.getKey(), null);
+      } else {
+        output.put(entry.getKey(), entry.getValue());
+      }
+    }
+    return output;
   }
 
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
     log.tracef("put(%s)%s", key, notes);
-    try {
-      byte[] notesBytes = serializeMapToJsonBytes(notes);
-      jedis.set(key.getBytes(), notesBytes); // Use the byte[] version of set
-
-      if (lifespanSeconds > 0) {
-        jedis.expire(key.getBytes(), lifespanSeconds);
-      }
-    } catch (JsonProcessingException e) {
-      log.errorf("Failed to serialize notes to JSON for key %s: %s", key, e.getMessage());
-      // Handle exception
-    }
+    jedis.hset(key, stripNulls(notes));
   }
-
 
   @Override
   public Map<String, String> get(String key) {
     log.tracef("get(%s)%s", key, getShortStackTrace());
-
-    try {
-      var notesByte = jedis.get(key.getBytes());
-      return deserializeMap(notesByte);
-    } catch (IOException | ClassNotFoundException e) {
-      log.errorf("Failed to deserialize notes for key %s: %s", key, e.getMessage());
-      // Handle exception
-    }
-
-    return null;
+    return convertNulls(jedis.hgetAll(key));
   }
 
   @Override
   public Map<String, String> remove(String key) {
-    try {
-      var notesByte = jedis.get(key.getBytes());
-      jedis.del(key.getBytes());
-      return deserializeMap(notesByte);
-    } catch (IOException | ClassNotFoundException e) {
-      log.errorf("Failed to deserialize notes for key %s: %s", key, e.getMessage());
-      // Handle exception
-    }
-
-    return null;
+    log.tracef("remove(%s)%s", key, getShortStackTrace());
+    var m = jedis.hgetAll(key);
+    jedis.del(key);
+    log.tracef("removed(%s)%s", key, m);
+    return convertNulls(m);
   }
 
   @Override
   public boolean replace(String key, Map<String, String> notes) {
     log.tracef("replace(%s)%s", key, getShortStackTrace());
-    try {
-      var notesByte = jedis.get(key.getBytes());
-      var existingMap = deserializeMap(notesByte);
-      existingMap.putAll(notes);
-
-      return true;
-    } catch (IOException | ClassNotFoundException e) {
-      log.errorf("Failed to deserialize notes for key %s: %s", key, e.getMessage());
-      // Handle exception
-    }
-
-    return false;
+    long result = jedis.hsetex(key, HSetExParams.hSetExParams().fxx(), stripNulls(notes));
+    return result > 0;
   }
 
   @Override
   public boolean putIfAbsent(String key, long lifespanSeconds) {
     log.tracef("putIfAbsent(%s)%s", key, getShortStackTrace());
-    if (jedis.exists(key.getBytes())) {
-      jedis.expire(key.getBytes(), lifespanSeconds);
-      return true;
-    }
-
-    return false;
+    long result = jedis.hsetex(key, HSetExParams.hSetExParams().fnx(), Map.of());
+    return result > 0;
   }
 
   @Override
   public boolean contains(String key) {
-    return jedis.exists(key.getBytes());
+    return jedis.exists(key);
   }
 
   @Override

@@ -5,5 +5,5 @@ import redis.clients.jedis.Jedis;
 
 public interface RedisConnectionProvider extends Provider {
 
-    Jedis getJedis();
+  Jedis getJedis();
 }

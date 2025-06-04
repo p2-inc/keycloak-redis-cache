@@ -5,8 +5,8 @@ import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.jbosslog.JBossLog;
 import org.infinispan.Cache;
 import org.infinispan.client.hotrod.RemoteCache;

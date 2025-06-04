@@ -18,7 +18,6 @@ package io.phasetwo.keycloak.jpacache.testsuite;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import org.keycloak.Config.ConfigProvider;
@@ -154,7 +153,8 @@ public class Config implements ConfigProvider {
   }
 
   private String replaceProperties(String value) {
-    return StringPropertyReplacer.replaceProperties(value, SystemEnvProperties.UNFILTERED::getProperty);
+    return StringPropertyReplacer.replaceProperties(
+        value, SystemEnvProperties.UNFILTERED::getProperty);
   }
 
   @Override

@@ -8,25 +8,25 @@ import org.keycloak.provider.Spi;
 @AutoService(Spi.class)
 public class RedisConnectionSpi implements Spi {
 
-    public static final String NAME = "redisConnection";
+  public static final String NAME = "redisConnection";
 
-    @Override
-    public boolean isInternal() {
-        return true;
-    }
+  @Override
+  public boolean isInternal() {
+    return true;
+  }
 
-    @Override
-    public String getName() {
-        return NAME;
-    }
+  @Override
+  public String getName() {
+    return NAME;
+  }
 
-    @Override
-    public Class<? extends Provider> getProviderClass() {
-        return RedisConnectionProvider.class;
-    }
+  @Override
+  public Class<? extends Provider> getProviderClass() {
+    return RedisConnectionProvider.class;
+  }
 
-    @Override
-    public Class<? extends ProviderFactory> getProviderFactoryClass() {
-        return RedisConnectionProviderFactory.class;
-    }
+  @Override
+  public Class<? extends ProviderFactory> getProviderFactoryClass() {
+    return RedisConnectionProviderFactory.class;
+  }
 }

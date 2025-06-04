@@ -25,7 +25,7 @@ public class RedisCacheDatastoreProviderFactory extends DefaultDatastoreProvider
 
   @Override
   public DatastoreProvider create(KeycloakSession session) {
-    log.trace("Creating JpaCacheDatastoreProvider...");
+    // log.trace("Creating JpaCacheDatastoreProvider...");
     return createProviderCached(
         session, DatastoreProvider.class, () -> new RedisCacheDatastoreProvider(this, session));
   }

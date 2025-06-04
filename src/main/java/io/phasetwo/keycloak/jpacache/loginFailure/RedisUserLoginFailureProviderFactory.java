@@ -1,4 +1,4 @@
-package io.phasetwo.keycloak.jpacache.singleUseObject;
+package io.phasetwo.keycloak.jpacache.loginFailure;
 
 import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
 import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
@@ -9,18 +9,18 @@ import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProvider;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.models.SingleUseObjectProviderFactory;
+import org.keycloak.models.UserLoginFailureProviderFactory;
 
 @SuppressWarnings("rawtypes")
-@AutoService(SingleUseObjectProviderFactory.class)
-public class RedisCacheSingleUseObjectProviderFactory
-    implements SingleUseObjectProviderFactory<RedisCacheSingleUseObjectProvider>, IsSupported {
+@AutoService(UserLoginFailureProviderFactory.class)
+public class RedisUserLoginFailureProviderFactory
+    implements UserLoginFailureProviderFactory<RedisUserLoginFailureProvider>, IsSupported {
 
   @Override
-  public RedisCacheSingleUseObjectProvider create(KeycloakSession session) {
+  public RedisUserLoginFailureProvider create(KeycloakSession session) {
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    return new RedisCacheSingleUseObjectProvider(session, redisConnectionProvider.getJedis());
+    return new RedisUserLoginFailureProvider(session, redisConnectionProvider.getJedis());
   }
 
   @Override
