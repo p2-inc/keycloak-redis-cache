@@ -5,11 +5,10 @@ import org.keycloak.models.*;
 import org.keycloak.storage.datastore.DefaultDatastoreProvider;
 
 @JBossLog
-public class RedisCacheDatastoreProvider extends DefaultDatastoreProvider {
+public class RedisDatastoreProvider extends DefaultDatastoreProvider {
   private final KeycloakSession session;
 
-  public RedisCacheDatastoreProvider(
-      RedisCacheDatastoreProviderFactory factory, KeycloakSession session) {
+  public RedisDatastoreProvider(RedisDatastoreProviderFactory factory, KeycloakSession session) {
     super(factory, session);
     this.session = session;
   }

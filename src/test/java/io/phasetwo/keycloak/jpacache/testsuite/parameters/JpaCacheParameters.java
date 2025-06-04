@@ -2,11 +2,12 @@ package io.phasetwo.keycloak.jpacache.testsuite.parameters;
 
 import com.google.common.collect.ImmutableSet;
 import io.phasetwo.keycloak.compatibility.MapPublicKeyStorageProviderFactory;
-import io.phasetwo.keycloak.jpacache.RedisCacheDatastoreProviderFactory;
+import io.phasetwo.keycloak.jpacache.RedisDatastoreProviderFactory;
 import io.phasetwo.keycloak.jpacache.connection.DefaultRedisConnectionProviderFactory;
 import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProviderFactory;
 import io.phasetwo.keycloak.jpacache.connection.RedisConnectionSpi;
-import io.phasetwo.keycloak.jpacache.singleUseObject.RedisCacheSingleUseObjectProviderFactory;
+import io.phasetwo.keycloak.jpacache.loginFailure.RedisUserLoginFailureProviderFactory;
+import io.phasetwo.keycloak.jpacache.singleUseObject.RedisSingleUseObjectProviderFactory;
 import io.phasetwo.keycloak.jpacache.testsuite.Config;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelParameters;
 import java.util.Set;
@@ -112,9 +113,10 @@ public class JpaCacheParameters extends KeycloakModelParameters {
 
   static final Set<Class<? extends ProviderFactory>> ALLOWED_FACTORIES =
       ImmutableSet.<Class<? extends ProviderFactory>>builder()
-          .add(RedisCacheSingleUseObjectProviderFactory.class)
+          .add(RedisSingleUseObjectProviderFactory.class)
+          .add(RedisUserLoginFailureProviderFactory.class)
           .add(RedisConnectionProviderFactory.class)
-          .add(RedisCacheDatastoreProviderFactory.class)
+          .add(RedisDatastoreProviderFactory.class)
           .add(ClientDisabledClientRegistrationPolicyFactory.class)
           .add(ClientScopesClientRegistrationPolicyFactory.class)
           .add(ConsentRequiredClientRegistrationPolicyFactory.class)

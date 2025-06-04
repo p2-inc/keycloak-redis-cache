@@ -1,7 +1,8 @@
 package io.phasetwo.keycloak.jpacache.loginFailure;
 
-
+import com.google.common.collect.Maps;
 import java.util.Map;
+import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -14,13 +15,13 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
   private final Jedis jedis;
   private final KeycloakSession session;
-  private final Map<String, RedisUserLoginFailureAdapter> cache = new HashMap<>();
-  private final RedisLoginFailureTransaction tx;
+  private final Map<String, RedisUserLoginFailureAdapter> cache = Maps.newHashMap();
+  private final RedisUserLoginFailureTransaction tx;
 
-  public RedisUserLoginFailureProvider(Jedis jedis, KeycloakSession session) {
+  public RedisUserLoginFailureProvider(KeycloakSession session, Jedis jedis) {
     this.jedis = jedis;
     this.session = session;
-    this.tx = new RedisLoginFailureTransaction(jedis, realmId);
+    this.tx = new RedisUserLoginFailureTransaction(jedis, ""); // todo get realmId
     session.getTransactionManager().enlistAfterCompletion(tx);
   }
 
@@ -38,7 +39,7 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
   @Override
   public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
     RedisUserLoginFailureAdapter model =
-        new RedisUserLoginFailureAdapter(realm, userId, new HashMap<>());
+        new RedisUserLoginFailureAdapter(realm, userId, Maps.newHashMap());
     cache.put(userId, model);
     tx.addForSave(model);
     return model;
@@ -47,7 +48,7 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
   @Override
   public void removeUserLoginFailure(RealmModel realm, String userId) {
     RedisUserLoginFailureAdapter model =
-        new RedisUserLoginFailureAdapter(realm, userId, new HashMap<>());
+        new RedisUserLoginFailureAdapter(realm, userId, Maps.newHashMap());
     model.markForDelete();
     tx.addForSave(model);
   }

@@ -14,7 +14,7 @@ import redis.clients.jedis.params.HSetExParams;
 
 @JBossLog
 @RequiredArgsConstructor
-public class RedisCacheSingleUseObjectProvider implements SingleUseObjectProvider {
+public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   private final KeycloakSession session;
 
   private final Jedis jedis;

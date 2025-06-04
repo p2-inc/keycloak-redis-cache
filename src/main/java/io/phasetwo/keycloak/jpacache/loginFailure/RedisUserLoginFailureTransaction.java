@@ -4,14 +4,14 @@ import java.util.*;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.Jedis;
 
-public class RedisLoginFailureTransaction extends AbstractKeycloakTransaction {
+public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransaction {
 
   private final List<RedisUserLoginFailureAdapter> toPersist = new ArrayList<>();
   private final List<String> toDelete = new ArrayList<>();
   private final Jedis jedis;
   private final String realmId;
 
-  public RedisLoginFailureTransaction(Jedis jedis, String realmId) {
+  public RedisUserLoginFailureTransaction(Jedis jedis, String realmId) {
     this.jedis = jedis;
     this.realmId = realmId;
   }

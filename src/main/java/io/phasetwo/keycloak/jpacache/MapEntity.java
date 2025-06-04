@@ -3,6 +3,7 @@ package io.phasetwo.keycloak.jpacache;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public abstract class MapEntity {
@@ -37,9 +38,9 @@ public abstract class MapEntity {
     return val != null ? Integer.parseInt(val) : defaultValue;
   }
 
-  protected Long getLong(String key) {
+  protected long getLong(String key, int defaultValue) {
     String val = data.get(key);
-    return val != null ? Long.parseLong(val) : null;
+    return val != null ? Long.parseLong(val) : defaultValue;
   }
 
   protected String getString(String key) {
@@ -55,7 +56,7 @@ public abstract class MapEntity {
   }
 
   public Map<String, String> getDirtyFields() {
-    Map<String, String> dirty = new HashMap<>();
+    Map<String, String> dirty = Maps.newHashMap();
     for (String k : dirtyFields) {
       dirty.put(k, data.get(k));
     }

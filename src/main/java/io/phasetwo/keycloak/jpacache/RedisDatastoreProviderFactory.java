@@ -13,7 +13,7 @@ import org.keycloak.storage.datastore.DefaultDatastoreProviderFactory;
 
 @AutoService(DatastoreProviderFactory.class)
 @JBossLog
-public class RedisCacheDatastoreProviderFactory extends DefaultDatastoreProviderFactory
+public class RedisDatastoreProviderFactory extends DefaultDatastoreProviderFactory
     implements IsSupported {
   private static final String PROVIDER_ID =
       "legacy"; // Override legacy provider to disable timers / event listeners and stuff...
@@ -27,7 +27,7 @@ public class RedisCacheDatastoreProviderFactory extends DefaultDatastoreProvider
   public DatastoreProvider create(KeycloakSession session) {
     // log.trace("Creating JpaCacheDatastoreProvider...");
     return createProviderCached(
-        session, DatastoreProvider.class, () -> new RedisCacheDatastoreProvider(this, session));
+        session, DatastoreProvider.class, () -> new RedisDatastoreProvider(this, session));
   }
 
   @Override

@@ -13,14 +13,14 @@ import org.keycloak.models.SingleUseObjectProviderFactory;
 
 @SuppressWarnings("rawtypes")
 @AutoService(SingleUseObjectProviderFactory.class)
-public class RedisCacheSingleUseObjectProviderFactory
-    implements SingleUseObjectProviderFactory<RedisCacheSingleUseObjectProvider>, IsSupported {
+public class RedisSingleUseObjectProviderFactory
+    implements SingleUseObjectProviderFactory<RedisSingleUseObjectProvider>, IsSupported {
 
   @Override
-  public RedisCacheSingleUseObjectProvider create(KeycloakSession session) {
+  public RedisSingleUseObjectProvider create(KeycloakSession session) {
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    return new RedisCacheSingleUseObjectProvider(session, redisConnectionProvider.getJedis());
+    return new RedisSingleUseObjectProvider(session, redisConnectionProvider.getJedis());
   }
 
   @Override
