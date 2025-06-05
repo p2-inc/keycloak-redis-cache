@@ -21,44 +21,34 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
   public RedisUserLoginFailureProvider(KeycloakSession session, Jedis jedis) {
     this.jedis = jedis;
     this.session = session;
-    this.tx = new RedisUserLoginFailureTransaction(jedis, ""); // todo get realmId
+    this.tx = new RedisUserLoginFailureTransaction(jedis);
     session.getTransactionManager().enlistAfterCompletion(tx);
   }
 
   @Override
   public UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
-    String key = "login-failure:" + realm.getId() + ":" + userId;
-    Map<String, String> data = jedis.hgetAll(key);
-    if (data == null || data.isEmpty()) return null;
-
-    RedisUserLoginFailureAdapter model = new RedisUserLoginFailureAdapter(realm, userId, data);
-    cache.put(userId, model);
-    return model;
+    return tx.get(realm.getId(), userId);
   }
 
   @Override
   public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
-    RedisUserLoginFailureAdapter model =
-        new RedisUserLoginFailureAdapter(realm, userId, Maps.newHashMap());
-    cache.put(userId, model);
+    RedisUserLoginFailureAdapter model = new RedisUserLoginFailureAdapter(realm.getId(), userId);
     tx.addForSave(model);
     return model;
   }
 
   @Override
   public void removeUserLoginFailure(RealmModel realm, String userId) {
-    RedisUserLoginFailureAdapter model =
-        new RedisUserLoginFailureAdapter(realm, userId, Maps.newHashMap());
-    model.markForDelete();
-    tx.addForSave(model);
+    tx.addForDelete(new LoginFailureKey(realm.getId(), userId));
   }
 
   @Override
   public void removeAllUserLoginFailures(RealmModel realm) {
     String indexKey = "login-failure:index:" + realm.getId();
+    log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> userIds = jedis.smembers(indexKey);
     for (String userId : userIds) {
-      tx.addForDelete(userId);
+      tx.addForDelete(new LoginFailureKey(realm.getId(), userId));
     }
   }
 

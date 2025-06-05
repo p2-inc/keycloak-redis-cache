@@ -1,20 +1,36 @@
 package io.phasetwo.keycloak.jpacache.loginFailure;
 
+import com.google.common.collect.ImmutableMap;
 import io.phasetwo.keycloak.jpacache.MapEntity;
-import java.util.*;
-import org.keycloak.models.RealmModel;
+import java.util.Map;
 import org.keycloak.models.UserLoginFailureModel;
 
 public class RedisUserLoginFailureAdapter extends MapEntity implements UserLoginFailureModel {
 
-  private final RealmModel realm;
-  private final String userId;
+  public RedisUserLoginFailureAdapter(String realmId, String userId) {
+    this(realmId, userId, null);
+  }
 
   public RedisUserLoginFailureAdapter(
-      RealmModel realm, String userId, Map<String, String> existingData) {
+      String realmId, String userId, Map<String, String> existingData) {
     super(existingData);
-    this.realm = realm;
-    this.userId = userId;
+    setField("userId", userId);
+    setField("realmId", realmId);
+  }
+
+  public LoginFailureKey getKey() {
+    return new LoginFailureKey(getRealmId(), getUserId());
+  }
+
+  // make this <Key,String>?
+  public Map<String, String> getSecondaryIndexes() {
+    ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
+    b.put(String.format("login-failure:index:%s", getRealmId()), getUserId());
+    return b.build();
+  }
+
+  public String getRealmId() {
+    return getString("realmId");
   }
 
   @Override

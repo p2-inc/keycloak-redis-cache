@@ -10,13 +10,16 @@ public abstract class MapEntity {
 
   private final Map<String, String> data;
   private final Set<String> dirtyFields = Sets.newHashSet();
+  private final Set<String> deletedFields = Sets.newHashSet();
   private boolean markedForDelete = false;
   private boolean isNew = true;
 
   public MapEntity(Map<String, String> existingData) {
-    this.data = Maps.newHashMap(existingData);
     if (existingData != null && !existingData.isEmpty()) {
       isNew = false;
+      this.data = Maps.newHashMap(existingData);
+    } else {
+      this.data = Maps.newHashMap();
     }
   }
 
@@ -26,10 +29,12 @@ public abstract class MapEntity {
     if (!Objects.equals(current, strVal)) {
       if (strVal == null) {
         data.remove(key);
+        deletedFields.add(key);
       } else {
         data.put(key, strVal);
+        dirtyFields.add(key);
+        deletedFields.remove(key);
       }
-      dirtyFields.add(key);
     }
   }
 
@@ -48,7 +53,7 @@ public abstract class MapEntity {
   }
 
   public boolean isDirty() {
-    return !dirtyFields.isEmpty();
+    return !dirtyFields.isEmpty() && !deletedFields.isEmpty();
   }
 
   public boolean isMarkedForDelete() {
@@ -61,6 +66,10 @@ public abstract class MapEntity {
       dirty.put(k, data.get(k));
     }
     return dirty;
+  }
+
+  public Set<String> getDeletedFields() {
+    return deletedFields;
   }
 
   public void markForDelete() {

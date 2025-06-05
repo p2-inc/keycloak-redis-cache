@@ -14,6 +14,11 @@ public class RedisDatastoreProvider extends DefaultDatastoreProvider {
   }
 
   @Override
+  public UserLoginFailureProvider loginFailures() {
+    return session.getProvider(UserLoginFailureProvider.class);
+  }
+
+  @Override
   public SingleUseObjectProvider singleUseObjects() {
     return session.getProvider(SingleUseObjectProvider.class);
   }
