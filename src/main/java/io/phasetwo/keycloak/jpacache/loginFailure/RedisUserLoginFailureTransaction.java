@@ -82,15 +82,19 @@ public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransactio
           }
         } else if (model.isDirty()) {
           Map<String, String> updates = model.getDirtyFields();
+          // hset the new/changed values
           log.debugf("[redis] HSET %s %s", key, updates);
           txn.hset(key, updates);
+          // sadd the secondary indexes
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
             log.debugf("[redis] SADD %s %s", index.getKey(), index.getValue());
             txn.sadd(index.getKey(), index.getValue());
           }
-          for (String deletedField : model.getDeletedFields()) {
-            log.debugf("[redis] HDEL %s %s", key, deletedField);
-            txn.hdel(key, deletedField);
+          // hdel the values that were unset
+          String[] del = model.getDeletedFields().toArray(new String[0]);
+          if (del != null && del.length > 0) {
+            log.debugf("[redis] HDEL %s %s", key, del);
+            txn.hdel(key, del);
           }
         }
       }

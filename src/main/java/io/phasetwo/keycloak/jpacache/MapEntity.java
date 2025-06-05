@@ -5,7 +5,9 @@ import com.google.common.collect.Sets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import lombok.extern.jbosslog.JBossLog;
 
+@JBossLog
 public abstract class MapEntity {
 
   private final Map<String, String> data;
@@ -24,6 +26,7 @@ public abstract class MapEntity {
   }
 
   protected void setField(String key, Object value) {
+    log.debugf("setField %s %s", key, value);
     String strVal = value == null ? null : String.valueOf(value);
     String current = data.get(key);
     if (!Objects.equals(current, strVal)) {
@@ -35,6 +38,8 @@ public abstract class MapEntity {
         dirtyFields.add(key);
         deletedFields.remove(key);
       }
+    } else {
+      log.debugf("field isn't different. skipping. %s %s", key, value);
     }
   }
 
@@ -53,7 +58,7 @@ public abstract class MapEntity {
   }
 
   public boolean isDirty() {
-    return !dirtyFields.isEmpty() && !deletedFields.isEmpty();
+    return !dirtyFields.isEmpty() || !deletedFields.isEmpty();
   }
 
   public boolean isMarkedForDelete() {
