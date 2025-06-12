@@ -89,6 +89,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public void close() {
-    // Nothing to do
+    // jedis.close(); needs to be closed in order to return to the pool.
+    //Check RedisConnectionProvider.close() method
   }
 }

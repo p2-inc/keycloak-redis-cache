@@ -54,6 +54,7 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
   @Override
   public void close() {
-    // Jedis managed outside
+   // jedis.close(); needs to be closed in order to return to the pool.
+    //Check RedisConnectionProvider.close() method
   }
 }

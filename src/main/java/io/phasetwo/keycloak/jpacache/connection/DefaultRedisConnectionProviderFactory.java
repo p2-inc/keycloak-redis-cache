@@ -25,13 +25,19 @@ public class DefaultRedisConnectionProviderFactory
   public RedisConnectionProvider create(KeycloakSession session) {
     return new RedisConnectionProvider() {
 
+      private Jedis resource;
+
       @Override
       public Jedis getJedis() {
-        return jedisPool.getResource();
+        resource = jedisPool.getResource();
+        return resource;
       }
 
       @Override
-      public void close() {}
+      public void close() {
+        // we could close the Jedis object here as a single point of failure
+        resource.close();
+      }
     };
   }
 
