@@ -48,41 +48,42 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
-    log.tracef("put(%s)%s", key, notes);
+    log.debugf("[redis] HSET %s %s", key, notes);
     jedis.hset(key, stripNulls(notes));
   }
 
   @Override
   public Map<String, String> get(String key) {
-    log.tracef("get(%s)%s", key, getShortStackTrace());
+    log.debugf("[redis] HGETALL %s", key);
     return convertNulls(jedis.hgetAll(key));
   }
 
   @Override
   public Map<String, String> remove(String key) {
-    log.tracef("remove(%s)%s", key, getShortStackTrace());
+    log.debugf("[redis] HGETALL %s", key);
     var m = jedis.hgetAll(key);
+    log.debugf("[redis] DEL %s", key);
     jedis.del(key);
-    log.tracef("removed(%s)%s", key, m);
     return convertNulls(m);
   }
 
   @Override
   public boolean replace(String key, Map<String, String> notes) {
-    log.tracef("replace(%s)%s", key, getShortStackTrace());
+    log.debugf("[redis] HSETEX FXX %s %s", key, notes);
     long result = jedis.hsetex(key, HSetExParams.hSetExParams().fxx(), stripNulls(notes));
     return result > 0;
   }
 
   @Override
   public boolean putIfAbsent(String key, long lifespanSeconds) {
-    log.tracef("putIfAbsent(%s)%s", key, getShortStackTrace());
+    log.debugf("[redis] HSETEX FNX %s", key);
     long result = jedis.hsetex(key, HSetExParams.hSetExParams().fnx(), Map.of());
     return result > 0;
   }
 
   @Override
   public boolean contains(String key) {
+    log.debugf("[redis] EXISTS %s", key);
     return jedis.exists(key);
   }
 

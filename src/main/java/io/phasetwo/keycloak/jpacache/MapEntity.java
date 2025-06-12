@@ -8,15 +8,17 @@ import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 
 @JBossLog
-public abstract class MapEntity {
+public abstract class MapEntity<K extends Key> {
 
+  private final K key;
   private final Map<String, String> data;
   private final Set<String> dirtyFields = Sets.newHashSet();
   private final Set<String> deletedFields = Sets.newHashSet();
   private boolean markedForDelete = false;
   private boolean isNew = true;
 
-  public MapEntity(Map<String, String> existingData) {
+  protected MapEntity(K key, Map<String, String> existingData) {
+    this.key = key;
     if (existingData != null && !existingData.isEmpty()) {
       isNew = false;
       this.data = Maps.newHashMap(existingData);
@@ -25,6 +27,10 @@ public abstract class MapEntity {
     }
   }
 
+  // maybe the data map is a Map<String,Function<Object,String>> so that if we have
+  // serialized data (e.g. "notes" map fields) we can update these during the
+  // session but only serialize them once if the field is dirty
+  
   protected void setField(String key, Object value) {
     log.debugf("setField %s %s", key, value);
     String strVal = value == null ? null : String.valueOf(value);
@@ -42,7 +48,7 @@ public abstract class MapEntity {
       log.debugf("field isn't different. skipping. %s %s", key, value);
     }
   }
-
+  
   protected int getInt(String key, int defaultValue) {
     String val = data.get(key);
     return val != null ? Integer.parseInt(val) : defaultValue;
@@ -55,6 +61,13 @@ public abstract class MapEntity {
 
   protected String getString(String key) {
     return data.get(key);
+  }
+
+  // make this <Key,String>?
+  public abstract Map<String, String> getSecondaryIndexes();
+
+  public K getKey() {
+    return this.key;
   }
 
   public boolean isDirty() {

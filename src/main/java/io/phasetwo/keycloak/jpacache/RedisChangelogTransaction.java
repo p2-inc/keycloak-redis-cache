@@ -1,6 +1,5 @@
-package io.phasetwo.keycloak.jpacache.loginFailure;
+package io.phasetwo.keycloak.jpacache;
 
-import io.phasetwo.keycloak.jpacache.Key;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.util.List;
@@ -10,37 +9,40 @@ import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
+import java.util.function.Function;
 
 @JBossLog
-public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransaction {
+public class RedisChangelogTransaction<K extends Key,A extends MapEntity<K>> extends AbstractKeycloakTransaction {
 
-  private final Map<Key, RedisUserLoginFailureAdapter> cache = Maps.newHashMap();
-  private final Set<Key> toDelete = Sets.newHashSet();
+  private final Map<K, A> cache = Maps.newHashMap();
+  private final Set<A> toDelete = Sets.newHashSet();
+  private final AdapterSupplier<K,A> adapterSupplier;
   private final Jedis jedis;
 
-  public RedisUserLoginFailureTransaction(Jedis jedis) {
+  public RedisChangelogTransaction(Jedis jedis, AdapterSupplier<K,A> adapterSupplier) {
     this.jedis = jedis;
+    this.adapterSupplier = adapterSupplier;
   }
 
-  public RedisUserLoginFailureAdapter get(String realmId, String userId) {
-    RedisUserLoginFailureAdapter model = cache.get(userId);
+  public A get(K k) {
+    A model = cache.get(k);
     if (model != null) return model;
-    String key = "login-failure:" + realmId + ":" + userId;
+    String key = k.key();
     log.debugf("[redis] HGETALL %s", key);
     Map<String, String> data = jedis.hgetAll(key);
     if (data == null || data.isEmpty()) return null;
     log.debugf("found data for %s %s", key, data);
-    model = new RedisUserLoginFailureAdapter(realmId, userId, data);
-    cache.put(model.getKey(), model);
+    model = adapterSupplier.newInstance(k, data);
+    cache.put(k, model);
     return model;
   }
 
-  public void addForSave(RedisUserLoginFailureAdapter model) {
+  public void addForSave(A model) {
     cache.put(model.getKey(), model);
   }
 
-  public void addForDelete(LoginFailureKey key) {
-    toDelete.add(key);
+  public void addForDelete(A model) {
+    toDelete.add(model);
   }
 
   @Override
@@ -48,13 +50,13 @@ public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransactio
     Set<String> keysToWatch = Sets.newHashSet();
 
     // Keys to watch: all affected session keys + index
-    for (RedisUserLoginFailureAdapter model : cache.values()) {
+    for (A model : cache.values()) {
       log.debugf("adding key to WATCH %s", model.getKey().key());
       keysToWatch.add(model.getKey().key());
     }
-    for (Key key : toDelete) {
-      log.debugf("adding key to WATCH %s", key.key());
-      keysToWatch.add(key.key());
+    for (A model : toDelete) {
+      log.debugf("adding key to WATCH %s", model.getKey().key());
+      keysToWatch.add(model.getKey().key());
     }
 
     try {
@@ -70,7 +72,7 @@ public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransactio
       log.debugf("[redis] MULTI");
       Transaction txn = jedis.multi();
 
-      for (RedisUserLoginFailureAdapter model : cache.values()) {
+      for (A model : cache.values()) {
         String key = model.getKey().key();
 
         if (model.isMarkedForDelete() || toDelete.contains(model.getKey())) {
@@ -101,15 +103,15 @@ public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransactio
         }
       }
       // will this ever run?
-      for (Key kr : toDelete) {
-        LoginFailureKey k = (LoginFailureKey)kr;
-        String key = ((LoginFailureKey)k).key();
-        // how to get this without a model
-        String indexKey = String.format("login-failure:index:%s", k.realmId(), k.userId());
+      log.debugf("toDelete still has %d entries", toDelete.size());
+      for (A model : toDelete) {
+        String key = model.getKey().key();
         log.debugf("[redis] DEL %s", key);
         txn.del(key);
-        log.debugf("[redis] SREM %s %s", indexKey, k.userId());
-        txn.srem(indexKey, k.userId());
+        for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
+          log.debugf("[redis] SREM %s %s", index.getKey(), index.getValue());
+          txn.srem(index.getKey(), index.getValue());
+        }
       }
 
       log.debugf("[redis] EXEC");

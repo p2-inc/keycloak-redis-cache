@@ -13,16 +13,12 @@ public class RedisUserLoginFailureAdapter extends MapEntity implements UserLogin
 
   public RedisUserLoginFailureAdapter(
       String realmId, String userId, Map<String, String> existingData) {
-    super(existingData);
+    super(new LoginFailureKey(realmId, userId), existingData);
     setField("userId", userId);
     setField("realmId", realmId);
   }
 
-  public LoginFailureKey getKey() {
-    return new LoginFailureKey(getRealmId(), getUserId());
-  }
-
-  // make this <Key,String>?
+  @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
     b.put(String.format("login-failure:index:%s", getRealmId()), getUserId());
