@@ -1,34 +1,52 @@
 package io.phasetwo.keycloak.jpacache.authSession;
 
-import io.phasetwo.keycloak.jpacache.MapEntity;
 import com.google.common.collect.ImmutableMap;
 import io.phasetwo.keycloak.jpacache.MapEntity;
+import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
 import java.util.Objects;
-import org.keycloak.models.UserLoginFailureModel;
+import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
 import org.keycloak.common.util.SecretGenerator;
-import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
-import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.models.utils.SessionExpiration;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.jbosslog.JBossLog;
+import redis.clients.jedis.Jedis;
 
 @JBossLog
-public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthenticationSessionKey> implements RootAuthenticationSessionModel {
+public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthenticationSessionKey>
+    implements RootAuthenticationSessionModel {
 
-  public RedisRootAuthenticationSessionAdapter(String realmId, String id) {
-    this(realmId, id, null);
+  private final KeycloakSession session;
+  private final Jedis jedis;
+  private final RedisChangelogTransaction<
+          AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
+      authSessionTrx;
+
+  public RedisRootAuthenticationSessionAdapter(
+      KeycloakSession session,
+      Jedis jedis,
+      RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
+          authSessionTrx,
+      String realmId,
+      String id) {
+    this(session, jedis, authSessionTrx, realmId, id, null);
   }
 
   public RedisRootAuthenticationSessionAdapter(
-      String realmId, String id, Map<String, String> existingData) {
+      KeycloakSession session,
+      Jedis jedis,
+      RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
+          authSessionTrx,
+      String realmId,
+      String id,
+      Map<String, String> existingData) {
     super(new RootAuthenticationSessionKey(realmId, id), existingData);
+    this.session = session;
+    this.jedis = jedis;
+    this.authSessionTrx = authSessionTrx;
     setField("id", id);
     setField("realmId", realmId);
   }
@@ -42,7 +60,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   @Override
   public RealmModel getRealm() {
-    return null;//need a kc session
+    return session.realms().getRealm(getRealmId());
   }
 
   public String getRealmId() {
@@ -73,7 +91,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     */
     return null;
   }
-  
+
   @Override
   public AuthenticationSessionModel getAuthenticationSession(ClientModel client, String tabId) {
     log.tracef("getAuthenticationSession tabId=%s clientId=%s", tabId, client.getId());
@@ -185,5 +203,4 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   private String generateTabId() {
     return Base64Url.encode(SecretGenerator.getInstance().randomBytes(8));
   }
-  
 }

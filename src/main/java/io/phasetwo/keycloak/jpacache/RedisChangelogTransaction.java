@@ -9,17 +9,17 @@ import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
-import java.util.function.Function;
 
 @JBossLog
-public class RedisChangelogTransaction<K extends Key,A extends MapEntity<K>> extends AbstractKeycloakTransaction {
+public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
+    extends AbstractKeycloakTransaction {
 
   private final Map<K, A> cache = Maps.newHashMap();
   private final Set<A> toDelete = Sets.newHashSet();
-  private final AdapterSupplier<K,A> adapterSupplier;
+  private final AdapterSupplier<K, A> adapterSupplier;
   private final Jedis jedis;
 
-  public RedisChangelogTransaction(Jedis jedis, AdapterSupplier<K,A> adapterSupplier) {
+  public RedisChangelogTransaction(Jedis jedis, AdapterSupplier<K, A> adapterSupplier) {
     this.jedis = jedis;
     this.adapterSupplier = adapterSupplier;
   }

@@ -1,32 +1,52 @@
 package io.phasetwo.keycloak.jpacache.authSession;
 
-import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan;
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
-import static io.phasetwo.keycloak.common.ExpirationUtils.isExpired;
+import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan;
 
-import org.keycloak.common.util.Time;
-import io.phasetwo.keycloak.common.TimeAdapter;
-import org.keycloak.sessions.AuthenticationSessionProvider;
-import org.keycloak.models.KeycloakSession;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.jbosslog.JBossLog;
+import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import lombok.extern.jbosslog.JBossLog;
+import org.keycloak.common.util.Time;
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.sessions.AuthenticationSessionCompoundId;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.RealmModel;
 import redis.clients.jedis.Jedis;
 
 @JBossLog
-@RequiredArgsConstructor
 public class RedisAuthenticationSessionProvider implements AuthenticationSessionProvider {
-  
+
   private final KeycloakSession session;
   private final Jedis jedis;
   private final int authSessionsLimit;
+
+  private final RedisChangelogTransaction<
+          RootAuthenticationSessionKey, RedisRootAuthenticationSessionAdapter>
+      rootSessionTrx;
+  private final RedisChangelogTransaction<
+          AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
+      authSessionTrx;
+
+  public RedisAuthenticationSessionProvider(
+      KeycloakSession session, Jedis jedis, int authSessionsLimit) {
+    this.session = session;
+    this.jedis = jedis;
+    this.authSessionsLimit = authSessionsLimit;
+
+    this.authSessionTrx =
+        new RedisChangelogTransaction<>(
+            jedis, new AuthenticationSessionAdapterSupplier(session, jedis));
+    this.rootSessionTrx =
+        new RedisChangelogTransaction<>(
+            jedis,
+            new RootAuthenticationSessionAdapterSupplier(session, jedis, this.authSessionTrx));
+    session.getTransactionManager().enlistAfterCompletion(this.authSessionTrx);
+    session.getTransactionManager().enlistAfterCompletion(this.rootSessionTrx);
+  }
 
   @Override
   public RootAuthenticationSessionModel createRootAuthenticationSession(RealmModel realm) {
@@ -39,25 +59,24 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     Objects.requireNonNull(realm, "The provided realm can't be null!");
     log.tracef("createRootAuthenticationSession(%s)%s", realm.getName(), getShortStackTrace());
 
-    long timestamp = Time.currentTimeMillis();
+    int timestamp = (int) Time.currentTimeMillis();
     int authSessionLifespanSeconds = getAuthSessionLifespan(realm);
-    /*
 
-    RootAuthenticationSession entity =
-        RootAuthenticationSession.builder()
-            .id(id == null ? KeycloakModelUtils.generateId() : id)
-            .realmId(realm.getId())
-            .timestamp(timestamp)
-            .expiration(
-                timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds))
-            .build();
+    RedisRootAuthenticationSessionAdapter adapter =
+        new RedisRootAuthenticationSessionAdapter(
+            session,
+            jedis,
+            authSessionTrx,
+            realm.getId(),
+            id == null ? KeycloakModelUtils.generateId() : id);
+    adapter.setTimestamp(timestamp);
+    // todo how to deal with expiration
+    // .expiration(
+    //  timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds))
 
-    entityManager.persist(entity);
-    entityManager.flush();
+    rootSessionTrx.addForSave(adapter);
 
-    return entityToAdapterFunc(realm).apply(entity);
-    */
-    return null;
+    return adapter;
   }
 
   @Override
@@ -67,16 +86,8 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     if (authenticationSessionId == null) {
       return null;
     }
-    /*
-    log.tracef(
-        "getRootAuthenticationSession(%s, %s)%s",
-        realm.getName(), authenticationSessionId, getShortStackTrace());
-
-    return findRootAuthSession(realm, authenticationSessionId)
-        .map(entityToAdapterFunc(realm))
-        .orElse(null);
-    */
-    return null;
+    return rootSessionTrx.get(
+        new RootAuthenticationSessionKey(realm.getId(), authenticationSessionId));
   }
 
   /*
@@ -88,19 +99,22 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     return query.getResultList().stream().findFirst();
   }
   */
-  
+
   @Override
   public void removeRootAuthenticationSession(
       RealmModel realm, RootAuthenticationSessionModel authenticationSession) {
     Objects.requireNonNull(
         authenticationSession, "The provided root authentication session can't be null!");
-    /*
-    entityManager
-        .createNamedQuery("deleteRootAuthSession")
-        .setParameter("realmId", realm.getId())
-        .setParameter("id", authenticationSession.getId())
-        .executeUpdate();
-    */
+
+    RedisRootAuthenticationSessionAdapter adapter;
+    if (authenticationSession instanceof RedisRootAuthenticationSessionAdapter) {
+      adapter = (RedisRootAuthenticationSessionAdapter) authenticationSession;
+    } else {
+      adapter =
+          rootSessionTrx.get(
+              new RootAuthenticationSessionKey(realm.getId(), authenticationSession.getId()));
+    }
+    rootSessionTrx.addForDelete(adapter);
   }
 
   @Override
@@ -119,11 +133,13 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
 
   @Override
   public void onRealmRemoved(RealmModel realm) {
+    log.tracef("onRealmRemoved(%s)%s", realm, getShortStackTrace());
     // Just let them expire...
   }
 
   @Override
   public void onClientRemoved(RealmModel realm, ClientModel client) {
+    log.tracef("onClientRemoved(%s-%s)%s", realm, client, getShortStackTrace());
     // Just let them expire...
   }
 

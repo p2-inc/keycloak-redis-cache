@@ -3,18 +3,19 @@ package io.phasetwo.keycloak.jpacache.authSession;
 import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
 import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.sessions.AuthenticationSessionProviderFactory;
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
 import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProvider;
 import org.keycloak.Config;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.sessions.AuthenticationSessionProviderFactory;
 
 @SuppressWarnings("rawtypes")
 @AutoService(AuthenticationSessionProviderFactory.class)
 public class RedisAuthenticationSessionProviderFactory
-    implements AuthenticationSessionProviderFactory<RedisAuthenticationSessionProvider>, IsSupported {
+    implements AuthenticationSessionProviderFactory<RedisAuthenticationSessionProvider>,
+        IsSupported {
   public static final String AUTH_SESSIONS_LIMIT = "authSessionsLimit";
   public static final int DEFAULT_AUTH_SESSIONS_LIMIT = 300;
   private int authSessionsLimit = 0;
@@ -23,7 +24,8 @@ public class RedisAuthenticationSessionProviderFactory
   public RedisAuthenticationSessionProvider create(KeycloakSession session) {
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    return new RedisAuthenticationSessionProvider(session, redisConnectionProvider.getJedis(), authSessionsLimit);
+    return new RedisAuthenticationSessionProvider(
+        session, redisConnectionProvider.getJedis(), authSessionsLimit);
   }
 
   @Override
@@ -31,7 +33,7 @@ public class RedisAuthenticationSessionProviderFactory
     int configInt = config.getInt(AUTH_SESSIONS_LIMIT, DEFAULT_AUTH_SESSIONS_LIMIT);
     // use default if provided value is not a positive number
     authSessionsLimit = (configInt <= 0) ? DEFAULT_AUTH_SESSIONS_LIMIT : configInt;
-  } 
+  }
 
   @Override
   public void postInit(KeycloakSessionFactory factory) {}

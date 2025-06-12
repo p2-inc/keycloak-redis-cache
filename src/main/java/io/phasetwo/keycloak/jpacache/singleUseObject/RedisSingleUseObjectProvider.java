@@ -1,6 +1,5 @@
 package io.phasetwo.keycloak.jpacache.singleUseObject;
 
-import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
@@ -90,6 +89,6 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   @Override
   public void close() {
     // jedis.close(); needs to be closed in order to return to the pool.
-    //Check RedisConnectionProvider.close() method
+    // Check RedisConnectionProvider.close() method
   }
 }

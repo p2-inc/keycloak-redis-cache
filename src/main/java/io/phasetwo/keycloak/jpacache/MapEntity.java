@@ -30,7 +30,7 @@ public abstract class MapEntity<K extends Key> {
   // maybe the data map is a Map<String,Function<Object,String>> so that if we have
   // serialized data (e.g. "notes" map fields) we can update these during the
   // session but only serialize them once if the field is dirty
-  
+
   protected void setField(String key, Object value) {
     log.debugf("setField %s %s", key, value);
     String strVal = value == null ? null : String.valueOf(value);
@@ -48,7 +48,7 @@ public abstract class MapEntity<K extends Key> {
       log.debugf("field isn't different. skipping. %s %s", key, value);
     }
   }
-  
+
   protected int getInt(String key, int defaultValue) {
     String val = data.get(key);
     return val != null ? Integer.parseInt(val) : defaultValue;

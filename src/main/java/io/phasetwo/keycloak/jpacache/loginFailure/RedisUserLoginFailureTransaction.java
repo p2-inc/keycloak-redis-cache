@@ -1,8 +1,8 @@
 package io.phasetwo.keycloak.jpacache.loginFailure;
 
-import io.phasetwo.keycloak.jpacache.Key;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import io.phasetwo.keycloak.jpacache.Key;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,8 +102,8 @@ public class RedisUserLoginFailureTransaction extends AbstractKeycloakTransactio
       }
       // will this ever run?
       for (Key kr : toDelete) {
-        LoginFailureKey k = (LoginFailureKey)kr;
-        String key = ((LoginFailureKey)k).key();
+        LoginFailureKey k = (LoginFailureKey) kr;
+        String key = ((LoginFailureKey) k).key();
         // how to get this without a model
         String indexKey = String.format("login-failure:index:%s", k.realmId(), k.userId());
         log.debugf("[redis] DEL %s", key);
