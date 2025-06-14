@@ -2,6 +2,7 @@ package io.phasetwo.keycloak.jpacache;
 
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.*;
+import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.storage.datastore.DefaultDatastoreProvider;
 
 @JBossLog
@@ -21,5 +22,10 @@ public class RedisDatastoreProvider extends DefaultDatastoreProvider {
   @Override
   public SingleUseObjectProvider singleUseObjects() {
     return session.getProvider(SingleUseObjectProvider.class);
+  }
+
+  @Override
+  public AuthenticationSessionProvider authSessions() {
+    return session.getProvider(AuthenticationSessionProvider.class);
   }
 }

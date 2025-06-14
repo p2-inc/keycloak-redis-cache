@@ -59,7 +59,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     Objects.requireNonNull(realm, "The provided realm can't be null!");
     log.tracef("createRootAuthenticationSession(%s)%s", realm.getName(), getShortStackTrace());
 
-    int timestamp = (int) Time.currentTimeMillis();
+    int timestamp = Time.currentTime();
     int authSessionLifespanSeconds = getAuthSessionLifespan(realm);
 
     RedisRootAuthenticationSessionAdapter adapter =
@@ -70,9 +70,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
             realm.getId(),
             id == null ? KeycloakModelUtils.generateId() : id);
     adapter.setTimestamp(timestamp);
-    // todo how to deal with expiration
-    // .expiration(
-    //  timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds))
+    adapter.setExpiration(timestamp + authSessionLifespanSeconds);
 
     rootSessionTrx.addForSave(adapter);
 
@@ -89,16 +87,6 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     return rootSessionTrx.get(
         new RootAuthenticationSessionKey(realm.getId(), authenticationSessionId));
   }
-
-  /*
-  private Optional<RootAuthenticationSession> findRootAuthSession(RealmModel realm, String id) {
-    TypedQuery<RootAuthenticationSession> query =
-        entityManager.createNamedQuery("findRootAuthSession", RootAuthenticationSession.class);
-    query.setParameter("realmId", realm.getId());
-    query.setParameter("id", id);
-    return query.getResultList().stream().findFirst();
-  }
-  */
 
   @Override
   public void removeRootAuthenticationSession(
@@ -121,14 +109,14 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
   public void removeAllExpired() {
     log.tracef("removeAllExpired()%s", getShortStackTrace());
     log.warnf(
-        "Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
+        "[deprecated] Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
   }
 
   @Override
   public void removeExpired(RealmModel realm) {
     log.tracef("removeExpired(%s)%s", realm, getShortStackTrace());
     log.warnf(
-        "Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
+        "[deprecated] Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
   }
 
   @Override
@@ -143,7 +131,6 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     // Just let them expire...
   }
 
-  // xgp TODO
   @Override
   public void updateNonlocalSessionAuthNotes(
       AuthenticationSessionCompoundId compoundId, Map<String, String> authNotesFragment) {
@@ -152,6 +139,12 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     }
     Objects.requireNonNull(
         authNotesFragment, "The provided authentication's notes map can't be null!");
+
+    log.tracef("updateNonlocalSessionAuthNotes(%s)%s", compoundId, getShortStackTrace());
+
+    // TODO implement
+
+    // how do I get the realm to make the key?
 
     /*
     TypedQuery<AuthenticationSession> query =

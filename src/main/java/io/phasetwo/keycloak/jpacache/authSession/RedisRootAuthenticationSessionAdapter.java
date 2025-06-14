@@ -1,13 +1,20 @@
 package io.phasetwo.keycloak.jpacache.authSession;
 
+import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan;
+
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
 import org.keycloak.common.util.SecretGenerator;
+import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -24,6 +31,9 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   private final RedisChangelogTransaction<
           AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
       authSessionTrx;
+
+  private Map<String, AuthenticationSessionModel> authSessions = Maps.newHashMap();
+  private boolean authSessionsInitialized = false;
 
   public RedisRootAuthenticationSessionAdapter(
       KeycloakSession session,
@@ -54,7 +64,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    b.put(String.format("root-auth-session:realm-index:%s", getRealmId()), getId());
+    b.put(String.format("root-auth-session:realm-index:%s", getRealmId()), getKey().key());
     return b.build();
   }
 
@@ -82,14 +92,39 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     return getInt("timestamp", 0);
   }
 
+  public void setExpiration(int expiration) {
+    setField("expiration", expiration);
+  }
+
+  public int getExpiration() {
+    return getInt("expiration", 0);
+  }
+
+  // TODO add expiration - figure out how to expire entries with a job or
+  // the redis internal mechanism (doesn't work on multi-region)
+
   @Override
   public Map<String, AuthenticationSessionModel> getAuthenticationSessions() {
-    /*
-    return rootAuthenticationSession.getAuthenticationSessions().values().stream()
-        .map(entityToAdapterFunc(realm))
-        .collect(Collectors.toMap(JpaCacheAuthSessionAdapter::getTabId, Function.identity()));
-    */
-    return null;
+    if (authSessionsInitialized) return authSessions;
+
+    String indexKey = String.format("auth-session:parent:%s", getId());
+    log.debugf("[redis] SMEMBERS %s", indexKey);
+    Set<String> strIds = jedis.smembers(indexKey);
+    if (strIds != null && !strIds.isEmpty()) {
+      Set<AuthenticationSessionKey> asIds =
+          strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
+
+      // todo
+      // - does anyone mutate the map directly? do we need to support put/putAll/remove/clear?
+
+      if (asIds != null) {
+        authSessions =
+            asIds.stream()
+                .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
+      }
+    }
+    authSessionsInitialized = true;
+    return authSessions;
   }
 
   @Override
@@ -98,106 +133,62 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     if (client == null || tabId == null) {
       return null;
     }
-
-    /*
-    TypedQuery<AuthenticationSession> query =
-        entityManager.createNamedQuery("findAuthSessionsByCompoundId", AuthenticationSession.class);
-    query.setParameter("parentSession", rootAuthenticationSession);
-    query.setParameter("tabId", tabId);
-    query.setParameter("clientId", client.getId());
-    List<AuthenticationSession> authSessions = query.getResultList();
-    if (authSessions != null && authSessions.size() > 0) {
-      log.tracef(
-          "Found %d authSessions for tabId=%s clientId=%s, in rootSession %s",
-          authSessions.size(), tabId, client.getClientId(), rootAuthenticationSession);
-      return entityToAdapterFunc(realm).apply(authSessions.get(0));
-    } else {
-      log.tracef(
-          "Found NO authSessions for tabId=%s clientId=%s, in rootSession %s",
-          tabId, client.getClientId(), rootAuthenticationSession);
-      return null;
-    }
-    */
-    return null;
+    return authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
   }
 
   @Override
   public AuthenticationSessionModel createAuthenticationSession(ClientModel client) {
     Objects.requireNonNull(client, "The provided client can't be null!");
 
-    /*
-    TypedQuery<AuthenticationSession> query =
-        entityManager.createNamedQuery(
-            "findAuthSessionsByRootSession", AuthenticationSession.class);
-    query.setParameter("parentSession", rootAuthenticationSession);
-    List<AuthenticationSession> authenticationSessions = query.getResultList();
-    if (authenticationSessions != null && authenticationSessions.size() >= authSessionsLimit) {
-      Optional<AuthenticationSession> oldest =
-          authenticationSessions.stream().min(TIMESTAMP_COMPARATOR);
-      String tabId = oldest.map(AuthenticationSession::getTabId).orElse(null);
-
-      if (tabId != null && !oldest.isEmpty()) {
-        log.debugf(
-            "Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with TabId %s.",
-            authSessionsLimit, tabId);
-        // remove the oldest authentication session
-        entityManager.remove(oldest.get());
-        entityManager.flush();
-      }
-    }
-
-    long timestamp = Time.currentTimeMillis();
-    int authSessionLifespanSeconds = getAuthSessionLifespan(realm);
+    int timestamp = Time.currentTime();
+    int authSessionLifespanSeconds = getAuthSessionLifespan(client.getRealm());
 
     String tabId = generateTabId();
-    AuthenticationSession authSession =
-        AuthenticationSession.builder()
-            .id(KeycloakModelUtils.generateId())
-            .parentSession(rootAuthenticationSession)
-            .clientId(client.getId())
-            .timestamp(timestamp)
-            .tabId(tabId)
-            .build();
-    entityManager.persist(authSession);
-    log.tracef("created authSession %s", authSession);
-    rootAuthenticationSession.setTimestamp(timestamp);
-    rootAuthenticationSession.setExpiration(
-        timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds));
-    rootAuthenticationSession.getAuthenticationSessions().put(tabId, authSession);
+    RedisAuthenticationSessionAdapter adapter =
+        new RedisAuthenticationSessionAdapter(session, client.getId(), tabId);
+    adapter.setClientUuid(client.getId());
+    adapter.setParentSession(this);
+    authSessionTrx.addForSave(adapter);
+    log.tracef("created authSession %s", adapter);
 
-    JpaCacheAuthSessionAdapter jpaCacheAuthSessionAdapter =
-        entityToAdapterFunc(realm).apply(authSession);
-    session.getContext().setAuthenticationSession(jpaCacheAuthSessionAdapter);
+    setTimestamp(timestamp);
+    setExpiration(timestamp + authSessionLifespanSeconds);
 
-    return jpaCacheAuthSessionAdapter;
-    */
-    return null;
+    getAuthenticationSessions().put(tabId, adapter);
+
+    session.getContext().setAuthenticationSession(adapter);
+    return adapter;
   }
 
   @Override
   public void removeAuthenticationSessionByTabId(String tabId) {
-    /*
-    AuthenticationSession authSession =
-        rootAuthenticationSession.getAuthenticationSessions().remove(tabId);
-    log.tracef("Removing authSession (%s) %s", tabId, authSession);
-    if (authSession != null) {
-      entityManager.remove(authSession);
-      if (rootAuthenticationSession.getAuthenticationSessions().isEmpty()) {
-        entityManager.remove(rootAuthenticationSession);
-      } else {
-        rootAuthenticationSession.setTimestamp(Time.currentTimeMillis());
-      }
-      entityManager.flush();
+    AuthenticationSessionModel as = getAuthenticationSessions().get(tabId);
+    removeAuthenticationSession(as);
+    getAuthenticationSessions().remove(tabId);
+    setTimestamp(Time.currentTime());
+  }
+
+  private void removeAuthenticationSession(AuthenticationSessionModel authSession) {
+    if (authSession != null && authSession instanceof RedisAuthenticationSessionAdapter) {
+      RedisAuthenticationSessionAdapter adapter = (RedisAuthenticationSessionAdapter) authSession;
+      authSessionTrx.addForDelete(adapter);
+    } else {
+      log.tracef(
+          "No authentication session found for %s",
+          authSession == null ? null : authSession.getTabId());
     }
-    */
   }
 
   @Override
   public void restartSession(RealmModel realm) {
-    /*
-    rootAuthenticationSession.getAuthenticationSessions().clear();
-    rootAuthenticationSession.setTimestamp(Time.currentTimeMillis());
-    */
+    Iterator<Map.Entry<String, AuthenticationSessionModel>> iterator =
+        getAuthenticationSessions().entrySet().iterator();
+    while (iterator.hasNext()) {
+      Map.Entry<String, AuthenticationSessionModel> entry = iterator.next();
+      removeAuthenticationSession(entry.getValue());
+      iterator.remove();
+    }
+    setTimestamp(Time.currentTime());
   }
 
   private String generateTabId() {

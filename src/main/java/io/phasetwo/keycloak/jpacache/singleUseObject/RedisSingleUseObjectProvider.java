@@ -1,6 +1,5 @@
 package io.phasetwo.keycloak.jpacache.singleUseObject;
 
-
 import com.google.common.collect.Maps;
 import java.util.Map;
 import java.util.stream.Collectors;

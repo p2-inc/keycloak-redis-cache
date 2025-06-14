@@ -43,11 +43,11 @@ public class RedisAuthenticationSessionProviderFactory
 
   @Override
   public String getId() {
-    return "infinispan-tmp-off"; // use same name as infinispan provider to override it
+    return "infinispan"; // use same name as infinispan provider to override it
   }
 
   @Override
   public int order() {
-    return PROVIDER_PRIORITY - 1;
+    return PROVIDER_PRIORITY + 1;
   }
 }

@@ -25,6 +25,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   }
 
   public A get(K k) {
+    if (toDelete.contains(k)) return null;
     A model = cache.get(k);
     if (model != null) return model;
     String key = k.key();

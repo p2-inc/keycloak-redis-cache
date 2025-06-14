@@ -1,9 +1,13 @@
 package io.phasetwo.keycloak.jpacache.authSession;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
@@ -11,6 +15,7 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
+import org.keycloak.util.JsonSerialization;
 
 @JBossLog
 public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationSessionKey>
@@ -19,22 +24,30 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   private final KeycloakSession session;
 
   private RootAuthenticationSessionModel parent;
+  private Map<String, String> authNotes;
+  private Map<String, String> clientNotes;
+  private Set<String> clientScopes;
+  private Map<String, String> executionStatus;
+  private Set<String> requiredActions;
+  private Map<String, String> userSessionNotes;
 
-  public RedisAuthenticationSessionAdapter(KeycloakSession session, String tabId) {
-    this(session, tabId, null);
+  public RedisAuthenticationSessionAdapter(KeycloakSession session, String clientId, String tabId) {
+    this(session, clientId, tabId, null);
   }
 
   public RedisAuthenticationSessionAdapter(
-      KeycloakSession session, String tabId, Map<String, String> existingData) {
-    super(new AuthenticationSessionKey(tabId), existingData);
+      KeycloakSession session, String clientId, String tabId, Map<String, String> existingData) {
+
+    super(new AuthenticationSessionKey(clientId, tabId), existingData);
     this.session = session;
+    setField("clientUuid", clientId);
     setField("tabId", tabId);
   }
 
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    // b.put(String.format("auth-session:something-index:%s", getTabId());
+    b.put(String.format("auth-session:parent:%s", getString("parentId")), getKey().key());
     return b.build();
   }
 
@@ -45,22 +58,33 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
 
   @Override
   public RootAuthenticationSessionModel getParentSession() {
-    return parent;
+    if (parent == null) {
+      this.parent =
+          session
+              .authenticationSessions()
+              .getRootAuthenticationSession(getRealm(), getString("parentId"));
+    }
+    return this.parent;
   }
 
   public void setParentSession(RootAuthenticationSessionModel parent) {
+    setField("parentId", parent.getId());
+    setField("realmId", parent.getRealm().getId());
     this.parent = parent;
   }
 
   @Override
   public RealmModel getRealm() {
-    return parent.getRealm();
+    return session.realms().getRealm(getString("realmId"));
   }
 
   @Override
   public ClientModel getClient() {
-    // return getRealm().getClientById(updater.getEntity().getClientUUID());
-    return null;
+    return getRealm().getClientById(getString("clientUuid"));
+  }
+
+  public void setClientUuid(String uuid) {
+    setField("clientUuid", uuid);
   }
 
   @Override
@@ -83,15 +107,45 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     setField("action", action);
   }
 
+  public String getUserId() {
+    return getString("userId");
+  }
+
+  public void setUserId(String userId) {
+    setField("userId", userId);
+  }
+
+  private Set<String> setFromField(String fieldName) {
+    String f = getString(fieldName);
+    if (f != null) {
+      try {
+        return JsonSerialization.readValue(f, new TypeReference<Set<String>>() {});
+      } catch (Exception ignore) {
+      }
+    }
+    return Sets.newHashSet();
+  }
+
+  private void setToField(Set<String> set, String fieldName) {
+    try {
+      if (set == null) setField(fieldName, null);
+      else setField(fieldName, JsonSerialization.writeValueAsString(set));
+    } catch (Exception ignore) {
+    }
+  }
+
   @Override
   public Set<String> getClientScopes() {
-    // todo
-    return null;
+    if (clientScopes == null) {
+      clientScopes = setFromField("clientScopes");
+    }
+    return clientScopes;
   }
 
   @Override
   public void setClientScopes(Set<String> clientScopes) {
-    // todo
+    this.clientScopes = clientScopes;
+    setToField(clientScopes.isEmpty() ? null : clientScopes, "clientScopes");
   }
 
   @Override
@@ -104,121 +158,171 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     setField("protocol", protocol);
   }
 
-  @Override
-  public String getClientNote(String name) {
-    // todo
-    return null;
+  private void mapToField(Map<String, String> map, String fieldName) {
+    try {
+      if (map == null) setField(fieldName, null);
+      else setField(fieldName, JsonSerialization.writeValueAsString(map));
+    } catch (Exception ignore) {
+    }
   }
 
-  @Override
-  public void setClientNote(String name, String value) {
-    // todo
-  }
-
-  @Override
-  public void removeClientNote(String name) {
-    // todo
+  private Map<String, String> mapFromField(String fieldName) {
+    String f = getString(fieldName);
+    if (f != null) {
+      try {
+        return JsonSerialization.readValue(f, new TypeReference<Map<String, String>>() {});
+      } catch (Exception ignore) {
+      }
+    }
+    return Maps.newHashMap();
   }
 
   @Override
   public Map<String, String> getClientNotes() {
-    // todo
-    return null;
+    if (clientNotes == null) {
+      clientNotes = mapFromField("clientNotes");
+    }
+    return clientNotes;
+  }
+
+  @Override
+  public String getClientNote(String name) {
+    return getClientNotes().get(name);
+  }
+
+  @Override
+  public void setClientNote(String name, String value) {
+    getClientNotes().put(name, value);
+    mapToField(clientNotes, "clientNotes");
+  }
+
+  @Override
+  public void removeClientNote(String name) {
+    getClientNotes().remove(name);
+    mapToField(clientNotes.isEmpty() ? null : clientNotes, "clientNotes");
   }
 
   @Override
   public void clearClientNotes() {
-    // todo
+    getClientNotes().clear();
+    mapToField(null, "clientNotes");
+  }
+
+  public Map<String, String> getAuthNotes() {
+    if (authNotes == null) {
+      authNotes = mapFromField("authNotes");
+    }
+    return authNotes;
   }
 
   @Override
   public String getAuthNote(String name) {
-    // todo
-    return null;
+    return getAuthNotes().get(name);
   }
 
   @Override
   public void setAuthNote(String name, String value) {
-    // todo
-
+    getAuthNotes().put(name, value);
+    mapToField(authNotes.isEmpty() ? null : authNotes, "authNotes");
   }
 
   @Override
   public void removeAuthNote(String name) {
-    // todo
-
+    getAuthNotes().remove(name);
+    mapToField(authNotes.isEmpty() ? null : authNotes, "authNotes");
   }
 
   @Override
   public void clearAuthNotes() {
-    // todo
+    getAuthNotes().clear();
+    mapToField(null, "authNotes");
   }
 
   @Override
   public void setUserSessionNote(String name, String value) {
-    // todo
+    getUserSessionNotes().put(name, value);
+    mapToField(userSessionNotes, "userSessionNotes");
   }
 
   @Override
   public Map<String, String> getUserSessionNotes() {
-    // todo
-    return null;
+    if (userSessionNotes == null) {
+      userSessionNotes = mapFromField("userSessionNotes");
+    }
+    return userSessionNotes;
   }
 
   @Override
   public void clearUserSessionNotes() {
-    // todo
-
+    getUserSessionNotes().clear();
+    mapToField(null, "userSessionNotes");
   }
 
   @Override
   public Set<String> getRequiredActions() {
-    // todo
-    return null;
+    if (requiredActions == null) {
+      requiredActions = setFromField("requiredActions");
+    }
+    return requiredActions;
   }
 
   @Override
   public void addRequiredAction(String action) {
-    // todo
+    getRequiredActions().add(action);
+    setToField(requiredActions, "requiredActions");
   }
 
   @Override
   public void removeRequiredAction(String action) {
-    // todo
+    getRequiredActions().remove(action);
+    setToField(requiredActions.isEmpty() ? null : requiredActions, "requiredActions");
   }
 
   @Override
   public void addRequiredAction(UserModel.RequiredAction action) {
-    // todo
-
+    addRequiredAction(action.name());
   }
 
   @Override
   public void removeRequiredAction(UserModel.RequiredAction action) {
-    // todo
+    removeRequiredAction(action.name());
+  }
 
+  public Map<String, String> getExecStatus() {
+    if (executionStatus == null) {
+      executionStatus = mapFromField("executionStatus");
+    }
+    return executionStatus;
   }
 
   @Override
   public Map<String, AuthenticationSessionModel.ExecutionStatus> getExecutionStatus() {
-    // todo
-    return null;
+    return getExecStatus().entrySet().stream()
+        .collect(
+            Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> AuthenticationSessionModel.ExecutionStatus.valueOf(entry.getValue())));
   }
 
   @Override
   public void setExecutionStatus(
       String authenticator, AuthenticationSessionModel.ExecutionStatus status) {
-    // todo
+    getExecStatus().put(authenticator, status.name());
+    mapToField(executionStatus, "executionStatus");
   }
 
   @Override
   public void clearExecutionStatus() {
-    // todo
+    getExecStatus().clear();
+    mapToField(null, "executionStatus");
   }
 
   @Override
   public UserModel getAuthenticatedUser() {
     // todo
+    log.trace("getAuthenticatedUser");
+    if (getUserId() == null) return null;
+    return session.users().getUserById(getRealm(), getUserId());
 
     /*
     if (updater.getEntity().getAuthUserId() == null) {
@@ -245,12 +349,18 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
       return session.users().getUserById(getRealm(), updater.getEntity().getAuthUserId());
     }
     */
-    return null;
   }
 
   @Override
   public void setAuthenticatedUser(UserModel user) {
     // todo
+    log.tracef("setAuthenticatedUser %s", user);
+    if (user == null) {
+      setUserId(null);
+    } else {
+      setUserId(user.getId());
+    }
+
     /*
     if (user == null) {
       updater.getEntity().setAuthUserId(null);
