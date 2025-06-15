@@ -1,24 +1,22 @@
 > :bug: **This is alpha software** Do not use this in production.
 
-# Keycloak JPA cache 
+# Keycloak Redis cache 
 
-Uses JPA instead of [Infinispan](https://infinispan.org/) for remote cache entities. Overrides the [`LegacyDatastoreProvider`](https://www.keycloak.org/docs-api/23.0.4/javadocs/org/keycloak/storage/datastore/LegacyDatastoreProvider.html).
+Uses [Redis](https://redis.io/) or [Valkey](https://valkey.io/) instead of [Infinispan](https://infinispan.org/) for distributed caches. Overrides the [`DatastoreProvider`](https://www.keycloak.org/docs-api/latest/javadocs/org/keycloak/storage/DatastoreProvider.html).
 
-Requires [Keycloak](https://keycloak.org) >= `24`.
+Requires [Keycloak](https://keycloak.org) >= `26`.
 
-Heavily inspired by [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension). Enormous thanks to these amazing engineers.
+Heavily inspired by [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension). Enormous thanks to these amazing engineers. Also a big thanks to the the creators of the "map-store". That project was overly ambitious, but yielded some great decisions that made this possible. Thanks for keeping the `DatastoreProvider`.
 
 ## Why
 
-From our post on Keycloak Discussions, [Future of seamless upgrades? #24655](https://github.com/keycloak/keycloak/discussions/24655):
+Put simply, the largest operational problem we have with Keycloak among all of our customers is Infinispan. Most have said that if they understood the complexities that Infinispan brings with it, and the operational costs, they never would have chosen Keycloak.
 
-> ... the one thing that causes peoples' jaws to hit the floor is when I tell them that **Keycloak upgrades may not be seamless (e.g. without downtime), and there is a risk of losing sessions**. We've found that many companies abandon plans to use Keycloak at this point, even if they were 99% sold on every other aspect. **In many ways, it's the only feature that matters**, as Keycloak provides feature parity (and in many cases superior functionality) to most other tools it is evaluated against.
+Furthermore, we've found that running Keycloak at medium to high scale requires, at minimum, using external Infinispan. An Infinispan cluster is hard to operate, even with all of the awesome operators and tools that team has built. And, this configuration for Keycloak and Infinispan is poorly documented and highly complex to get right. Furthermore, upgrading Infinispan itself is a daunting and error-prone task.
 
-To have a prayer of solving the above problem, at minimum you have to use external Infinispan. Infinispan is hard to operate, even with all of the awesome operators and tools that team has built. And, this configuration for Keycloak and Infinispan is poorly documented and highly complex to get right. Furthermore, upgrading Infinispan itself is a daunting and error-prone task.
+We've also been working on a multi-region, active-active story for Keycloak over the last 3 years since we ported it to run on [CockroachDB](https://quay.io/repository/phasetwo/keycloak-crdb). We think that a combination of that and a flexible cache replacement like Redis could be a great solution.
 
-The present day expectation of "cloud native" apps is that they are stateless, ephemeral images that come up and down quickly. This really isn't possible when using embedded or external Infinispan with Keycloak.
-
-By replacing the cache with a JPA implementation, it massively simplifies operation; specifically restarts and upgrades. Because of the performance loss (maybe? benchmark TBD), this is intended for users of Keycloak with small to medium deployments. **Such deployments don't have fully staffed, 24x7 NOCs, but their IAM system should still have great operational characteristics.** This intends to solve that.
+Most customers are already using Redis or Valkey, or one of the many cloud provider managed solutions. I once asked an interview question that went something like, "Can you suggest the best infrastructure choices to solve ...?". A particularly wise candidate replied, "The infrastructure you're already running".
 
 ## How to use
 
@@ -26,30 +24,36 @@ By replacing the cache with a JPA implementation, it massively simplifies operat
 
 Applies to any deployment type:
 
-- Set `KC_COMMUNITY_JPA_CACHE_ENABLED=true`
+- Set `KC_COMMUNITY_REDIS_CACHE_ENABLED=true`
+- Set `KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"`
+- Set `KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"`
 - Set `KC_CACHE=local`
-- Set `KC_FEATURES_DISABLED=authorization`
 
-### DIY
+### Build and install
 
 - Build the jar with `mvn clean install -DskipTests`
-- Put the `target/keycloak-jpa-cache-<version>.jar` in your Keycloak `providers/` directory
+- Put the `target/keycloak-redis-cache-<version>.jar` in your Keycloak `providers/` directory
 
 ### Docker
 
-TBD. You can currently try after building with the included `docker-compose.yml` file. Just run `docker compose up`.
+You can currently try after building with the included `docker-compose.yml` file. Just run `docker compose up`.
 
-## Known issues
+TODO build and publish a docker image so it's easier to try.
 
-- `ClusterProvider` implementation still relies on the replicated `work` cache using Infinispan. This is used to propagate evictions to the Realm or User local caches between instances. Todo replace this with something simpler, probably via the database.
-- Keycloak Authorization must be disabled (this is essential as otherwise Keycloak tries to use `InfinispanStoreFactory` in a lot of places).
+## Details and known issues
+
+- Local caches (e.g. `user`, `realm`, etc.) still use Infinispan internally. Only the distributed caches are replaced.
+- We use a job to expire entries rather than using Redis native TTL. This is because we want it to work with implementations that don't support multi-region expiration (e.g. AWS MemoryDB).
+- No migration of existing sessions is done.
+- We store both normal and "offline" sessions in the cache. No database persistence is used.
+- `ClusterProvider` implementation still relies on the replicated `work` cache using Infinispan. This is used to propagate evictions to the Realm or User local caches between instances. TODO replace this with Redis `PUBSUB`, or SNS (AWS) or Pub/Sub (GCP) for multi-region. .
+- Keycloak Authorization probably won't work (Keycloak tries to use `InfinispanStoreFactory` direclty in a lot of places).
 - Some tests are still skipped or failing. We need to understand if this is because the test fails to do everything in a single transaction (Keycloak doesn't do this internally) or if there is something we are missing.
 - Hasn't been benchmarked to look for issues under load.
-- Need to see if there are "L1 cache" ways to reduce load on the database, specifically in the context of a single transaction, or if JPA takes care of most of that.
 - You should probably enable sticky sessions on your load balancer, although we need to substantiate this with testing.
 
 -----
 
-Portions of the code are taken from [keycloak](https://github.com/keycloak/keycloak) and the [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension) and the copyright is held by their respective owners.
+Portions of the code are taken from [keycloak](https://github.com/keycloak/keycloak) and the [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension) and those copyrights are held by their respective owners. 
 
-All other documentation, source code and other files in this repository are Copyright 2024 Phase Two, Inc.
+All other documentation, source code and other files in this repository are Copyright 2025 Phase Two, Inc., and are made available under the terms of the included [license](COPYING).

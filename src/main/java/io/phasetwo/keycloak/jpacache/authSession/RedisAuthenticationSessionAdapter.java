@@ -1,9 +1,6 @@
 package io.phasetwo.keycloak.jpacache.authSession;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +12,6 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
-import org.keycloak.util.JsonSerialization;
 
 @JBossLog
 public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationSessionKey>
@@ -107,31 +103,22 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     setField("action", action);
   }
 
+  @Override
+  public String getProtocol() {
+    return getString("protocol");
+  }
+
+  @Override
+  public void setProtocol(String protocol) {
+    setField("protocol", protocol);
+  }
+
   public String getUserId() {
     return getString("userId");
   }
 
   public void setUserId(String userId) {
     setField("userId", userId);
-  }
-
-  private Set<String> setFromField(String fieldName) {
-    String f = getString(fieldName);
-    if (f != null) {
-      try {
-        return JsonSerialization.readValue(f, new TypeReference<Set<String>>() {});
-      } catch (Exception ignore) {
-      }
-    }
-    return Sets.newHashSet();
-  }
-
-  private void setToField(Set<String> set, String fieldName) {
-    try {
-      if (set == null) setField(fieldName, null);
-      else setField(fieldName, JsonSerialization.writeValueAsString(set));
-    } catch (Exception ignore) {
-    }
   }
 
   @Override
@@ -146,35 +133,6 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   public void setClientScopes(Set<String> clientScopes) {
     this.clientScopes = clientScopes;
     setToField(clientScopes.isEmpty() ? null : clientScopes, "clientScopes");
-  }
-
-  @Override
-  public String getProtocol() {
-    return getString("protocol");
-  }
-
-  @Override
-  public void setProtocol(String protocol) {
-    setField("protocol", protocol);
-  }
-
-  private void mapToField(Map<String, String> map, String fieldName) {
-    try {
-      if (map == null) setField(fieldName, null);
-      else setField(fieldName, JsonSerialization.writeValueAsString(map));
-    } catch (Exception ignore) {
-    }
-  }
-
-  private Map<String, String> mapFromField(String fieldName) {
-    String f = getString(fieldName);
-    if (f != null) {
-      try {
-        return JsonSerialization.readValue(f, new TypeReference<Map<String, String>>() {});
-      } catch (Exception ignore) {
-      }
-    }
-    return Maps.newHashMap();
   }
 
   @Override
