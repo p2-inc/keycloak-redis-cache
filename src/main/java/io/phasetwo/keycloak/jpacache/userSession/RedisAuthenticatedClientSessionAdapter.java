@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
+import java.util.Collections;
 import java.util.Map;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AuthenticatedClientSessionModel;
@@ -17,7 +18,6 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
     implements AuthenticatedClientSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
-  //  private final Jedis jedis;
 
   private Map<String, String> notes;
 
@@ -35,24 +35,32 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
+    b.put(String.format("authenticated-client:parent-index:%s", getParentId()), getKey().key());
     b.put(String.format("authenticated-client:client-index:%s", getClientUuid()), getKey().key());
     return b.build();
   }
 
   @Override
   public void detachFromUserSession() {
-    // todo
+    getUserSession().removeAuthenticatedClientSessions(Collections.singleton(getClientUuid()));
   }
 
   @Override
   public UserSessionModel getUserSession() {
-    // todo
-    return null;
+    return session.sessions().getUserSession(getRealm(), getParentId());
   }
 
   @Override
   public String getId() {
     return getString("id");
+  }
+
+  public String getParentId() {
+    return getString("parentId");
+  }
+
+  public void setParentId(String parentId) {
+    setField("parentId", parentId);
   }
 
   @Override
@@ -138,11 +146,15 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   @Override
   public RealmModel getRealm() {
-    return session.realms().getRealm(getString("realmId"));
+    return session.realms().getRealm(getRealmId());
   }
 
   public void setRealmId(String realmId) {
     setField("realmId", realmId);
+  }
+
+  public String getRealmId() {
+    return getString("realmId");
   }
 
   @Override

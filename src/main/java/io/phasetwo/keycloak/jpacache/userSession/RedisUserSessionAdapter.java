@@ -2,12 +2,16 @@ package io.phasetwo.keycloak.jpacache.userSession;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
+import org.keycloak.common.util.Time;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
@@ -25,7 +29,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
           AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
       clientSessionTrx;
 
-  private Map<String, RedisAuthenticatedClientSessionAdapter> clientSessions = Maps.newHashMap();
+  private Map<String, AuthenticatedClientSessionModel> clientSessions = Maps.newHashMap();
   private boolean clientSessionsInitialized = false;
   private Map<String, String> notes;
 
@@ -68,8 +72,23 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public Map<String, AuthenticatedClientSessionModel> getAuthenticatedClientSessions() {
-    // todo
-    return null;
+    if (clientSessionsInitialized) return clientSessions;
+
+    String indexKey = String.format("authenticated-client:parent-index:%s", getId());
+    log.debugf("[redis] SMEMBERS %s", indexKey);
+    Set<String> strIds = jedis.smembers(indexKey);
+    if (strIds != null && !strIds.isEmpty()) {
+      clientSessions =
+          strIds.stream()
+              .map(str -> AuthenticatedClientSessionKey.fromString(str))
+              .map(k -> clientSessionTrx.get(k))
+              .collect(
+                  Collectors.toMap(
+                      RedisAuthenticatedClientSessionAdapter::getClientUuid,
+                      s -> (AuthenticatedClientSessionModel) s));
+    }
+    clientSessionsInitialized = true;
+    return clientSessions;
   }
 
   @Override
@@ -257,11 +276,46 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
       String brokerSessionId,
       String brokerUserId) {
     // todo
+    // String correspondingSessionId = getNote(CORRESPONDING_SESSION_ID);
+
+    setRealmId(getRealmId());
+    setUserId(getUserId());
+    setLoginUsername(loginUsername);
+    setIpAddress(ipAddress);
+    setAuthMethod(authMethod);
+    setRememberMe(rememberMe);
+    setBrokerSessionId(brokerSessionId);
+    setBrokerUserId(brokerUserId);
+    setTimestamp(Time.currentTime());
+    setLastSessionRefresh(Time.currentTime());
+    setState(null);
+    setNotes(Maps.newHashMap());
+    removeAuthenticatedClientSessions(Sets.newHashSet(getAuthenticatedClientSessions().keySet()));
+
+    // todo
+    // if (correspondingSessionId != null) {
+    //   addNotes(CORRESPONDING_SESSION_ID, correspondingSessionId);
+    // }
   }
 
   @Override
   public void removeAuthenticatedClientSessions(Collection<String> removedClientUUIDS) {
-    // todo
+    Map<String, AuthenticatedClientSessionModel> acs = getAuthenticatedClientSessions();
+    for (String clientUuid : removedClientUUIDS) {
+      AuthenticatedClientSessionModel ac = acs.get(clientUuid);
+      if (ac != null) {
+        RedisAuthenticatedClientSessionAdapter a;
+        if (ac instanceof RedisAuthenticatedClientSessionAdapter) {
+          a = (RedisAuthenticatedClientSessionAdapter) ac;
+        } else {
+          a = clientSessionTrx.get(new AuthenticatedClientSessionKey(ac.getId()));
+        }
+        if (a != null) {
+          clientSessionTrx.addForDelete(a);
+          acs.remove(clientUuid);
+        }
+      }
+    }
   }
 
   @Override

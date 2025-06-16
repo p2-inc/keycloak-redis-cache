@@ -4,6 +4,7 @@ import static io.phasetwo.keycloak.jpacache.userSession.expiration.RedisSessionE
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 import static org.keycloak.models.UserSessionModel.SessionPersistenceState.TRANSIENT;
 
+import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import io.phasetwo.keycloak.jpacache.userSession.expiration.SessionExpirationData;
 import java.util.*;
@@ -59,7 +60,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       throw new IllegalStateException("User session is null.");
     }
 
-    /*
+    /* TODO
         UserSession userSessionEntity = ((CassandraUserSessionAdapter) userSession).getUserSessionEntity();
 
         if (userSessionEntity == null) {
@@ -93,7 +94,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       return null;
     }
 
-    /*
+    /* TODO
     // Reload Session to filter out transient sessions
     CassandraUserSessionAdapter currentSession = getUserSession(userSession.getRealm(), userSession.getId());
     return currentSession == null ? null : currentSession.getAuthenticatedClientSessionByClient(client.getId());
@@ -184,7 +185,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     Set<String> strIds = jedis.smembers(indexKey);
     if (strIds != null && !strIds.isEmpty()) {
       return strIds.stream()
-          .map(str -> new UserSessionKey(str))
+          .map(str -> UserSessionKey.fromString(str))
           .map(k -> userSessionTrx.get(k))
           .filter(s -> s.getRealmId().equals(realm.getId()))
           .filter(s -> offline == s.isOffline())
@@ -206,13 +207,19 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public Stream<UserSessionModel> getUserSessionsStream(RealmModel realm, ClientModel client) {
     log.tracef("getUserSessionsStream(%s, %s)%s", realm, client, getShortStackTrace());
 
-    /* TODO
-        return userSessionRepository.findUserSessionsByClientId(client.getId()).stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .filter(s -> s.getOffline() == null || !s.getOffline())
-                .map(entityToAdapterFunc((realm)));
-    */
-    return null;
+    String indexKey = String.format("authenticated-client:client-index:%s", client.getId());
+    log.debugf("[redis] SMEMBERS %s", indexKey);
+    Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
+    if (strIds != null && !strIds.isEmpty()) {
+      return strIds.stream()
+          .map(str -> AuthenticatedClientSessionKey.fromString(str))
+          .map(k -> clientSessionTrx.get(k))
+          .filter(c -> c.getRealmId().equals(realm.getId()))
+          .filter(c -> c.getClientUuid().equals(client.getId()))
+          .map(c -> c.getUserSession());
+    } else {
+      return Stream.empty();
+    }
   }
 
   @Override
@@ -222,14 +229,10 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         "getUserSessionsStream(%s, %s, %s, %s)%s",
         realm, client, firstResult, maxResults, getShortStackTrace());
 
-    /* TODO
-        return getUserSessionsStream(realm, client)
-                .filter(s -> s.getRealm().equals(realm))
-                .filter(s -> !s.isOffline())
-                .skip(firstResult != null && firstResult > 0 ? firstResult : 0)
-                .limit(maxResults != null && maxResults > 0 ? maxResults : Long.MAX_VALUE);
-    */
-    return null;
+    return getUserSessionsStream(realm, client)
+        .filter(s -> !s.isOffline())
+        .skip(firstResult != null && firstResult > 0 ? firstResult : 0)
+        .limit(maxResults != null && maxResults > 0 ? maxResults : Long.MAX_VALUE);
   }
 
   @Override
@@ -268,10 +271,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public long getActiveUserSessions(RealmModel realm, ClientModel client) {
     log.tracef("getActiveUserSessions(%s, %s)%s", realm, client, getShortStackTrace());
 
-    /* TODO
-        return userSessionRepository.findUserSessionsByClientId(client.getId()).size();
-    */
-    return 0;
+    // TODO a more efficient way?
+    return getUserSessionsStream(realm, client).count();
   }
 
   @Override
