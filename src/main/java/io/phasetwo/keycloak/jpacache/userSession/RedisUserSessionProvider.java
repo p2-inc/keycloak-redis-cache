@@ -29,8 +29,6 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
   private final Map<String, RedisUserSessionAdapter> transientUserSessions = new HashMap<>();
 
-  // private final Map<String, CassandraUserSessionAdapter> sessionModels = new HashMap<>();
-
   public RedisUserSessionProvider(KeycloakSession session, Jedis jedis) {
     this.session = session;
     this.jedis = jedis;

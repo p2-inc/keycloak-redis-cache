@@ -10,7 +10,9 @@ import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.UserSessionProviderFactory;
+import lombok.extern.jbosslog.JBossLog;
 
+@JBossLog
 @SuppressWarnings("rawtypes")
 @AutoService(UserSessionProviderFactory.class)
 public class RedisUserSessionProviderFactory
@@ -44,5 +46,7 @@ public class RedisUserSessionProviderFactory
 
   @Override
   public void loadPersistentSessions(
-      KeycloakSessionFactory sessionFactory, int maxErrors, int sessionsPerSegment) {}
+      KeycloakSessionFactory sessionFactory, int maxErrors, int sessionsPerSegment) {
+    log.tracef("loadPersistentSessions %d %d", maxErrors, sessionsPerSegment);
+  }
 }

@@ -28,4 +28,10 @@ public class RedisDatastoreProvider extends DefaultDatastoreProvider {
   public AuthenticationSessionProvider authSessions() {
     return session.getProvider(AuthenticationSessionProvider.class);
   }
+
+  @Override
+  public UserSessionProvider userSessions() {
+    return session.getProvider(UserSessionProvider.class);
+  }
+     
 }
