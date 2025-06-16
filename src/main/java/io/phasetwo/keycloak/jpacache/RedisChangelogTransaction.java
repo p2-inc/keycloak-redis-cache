@@ -2,12 +2,15 @@ package io.phasetwo.keycloak.jpacache;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.Response;
 import redis.clients.jedis.Transaction;
 
 @JBossLog
@@ -25,6 +28,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   }
 
   public A get(K k) {
+    if (k == null) return null;
     if (toDelete.contains(k)) return null;
     A model = cache.get(k);
     if (model != null) return model;
@@ -36,6 +40,39 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     model = adapterSupplier.newInstance(k, data);
     cache.put(k, model);
     return model;
+  }
+
+  public Map<K, A> getAll(Collection<K> keys) {
+    if (keys == null || keys.isEmpty()) return Maps.newLinkedHashMap();
+    Pipeline pipeline = jedis.pipelined();
+    Map<K, Response<Map<String, String>>> responses = Maps.newLinkedHashMap();
+    Map<K, A> result = Maps.newLinkedHashMap();
+
+    // Queue all HGETALLs
+    for (K key : keys) {
+      if (toDelete.contains(key)) continue;
+      A model = cache.get(key);
+      if (model != null) {
+        result.put(key, model);
+      } else {
+        log.debugf("[redis] HGETALL %s", key.key());
+        responses.put(key, pipeline.hgetAll(key.key()));
+      }
+    }
+    if (!responses.isEmpty()) { // only execute if some were not cached
+      pipeline.sync(); // flush and read all in one round-trip
+      // Build result map
+      for (Map.Entry<K, Response<Map<String, String>>> entry : responses.entrySet()) {
+        K key = entry.getKey();
+        Map<String, String> data = entry.getValue().get();
+        if (data != null && !data.isEmpty()) {
+          A model = adapterSupplier.newInstance(key, data);
+          result.put(key, model);
+          cache.put(key, model);
+        }
+      }
+    }
+    return result;
   }
 
   public void addForSave(A model) {
