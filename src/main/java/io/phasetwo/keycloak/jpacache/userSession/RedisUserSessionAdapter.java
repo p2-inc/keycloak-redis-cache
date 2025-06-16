@@ -1,8 +1,8 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Collection;
@@ -16,7 +16,8 @@ import org.keycloak.models.UserSessionModel;
 import redis.clients.jedis.Jedis;
 
 @JBossLog
-public class RedisUserSessionAdapter extends MapEntity<UserSessionKey> implements UserSessionModel {
+public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
+    implements UserSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
   private final Jedis jedis;
@@ -184,12 +185,12 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey> implement
     return getInt("lastSessionRefresh", 0);
   }
 
-  public void setExpiration(int expiration) {
-    setField("expiration", expiration);
+  public void setTimestamp(int timestamp) {
+    setField("timestamp", timestamp);
   }
 
-  public int getExpiration() {
-    return getInt("expiration", 0);
+  public int getTimestamp() {
+    return getInt("timestamp", 0);
   }
 
   @Override
@@ -229,6 +230,10 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey> implement
     else return null;
   }
 
+  public void setPersistenceState(UserSessionModel.SessionPersistenceState persistenceState) {
+    setField("persistenceState", persistenceState.name());
+  }
+
   @Override
   public UserSessionModel.State getState() {
     String stateStr = getString("state");
@@ -257,5 +262,16 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey> implement
   @Override
   public void removeAuthenticatedClientSessions(Collection<String> removedClientUUIDS) {
     // todo
+  }
+
+  @Override
+  public Long getExpiration() {
+    if (isNull("expiration")) return null;
+    return getLong("expiration", 0L);
+  }
+
+  @Override
+  public void setExpiration(Long expiration) {
+    setField("expiration", expiration);
   }
 }

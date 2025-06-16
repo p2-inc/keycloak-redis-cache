@@ -1,8 +1,8 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import java.util.Map;
 import lombok.extern.jbosslog.JBossLog;
@@ -14,7 +14,7 @@ import org.keycloak.models.UserSessionModel;
 
 @JBossLog
 public class RedisAuthenticatedClientSessionAdapter extends MapEntity<AuthenticatedClientSessionKey>
-    implements AuthenticatedClientSessionModel {
+    implements AuthenticatedClientSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
   //  private final Jedis jedis;
@@ -186,5 +186,16 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public void setProtocol(String protocol) {
     setField("protocol", protocol);
+  }
+
+  @Override
+  public Long getExpiration() {
+    if (isNull("expiration")) return null;
+    return getLong("expiration", 0L);
+  }
+
+  @Override
+  public void setExpiration(Long expiration) {
+    setField("expiration", expiration);
   }
 }

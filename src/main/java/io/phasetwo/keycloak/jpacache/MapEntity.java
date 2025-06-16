@@ -99,13 +99,17 @@ public abstract class MapEntity<K extends Key> {
     return val != null ? Integer.parseInt(val) : defaultValue;
   }
 
-  protected long getLong(String key, int defaultValue) {
+  protected long getLong(String key, long defaultValue) {
     String val = data.get(key);
     return val != null ? Long.parseLong(val) : defaultValue;
   }
 
   protected String getString(String key) {
     return data.get(key);
+  }
+
+  protected boolean isNull(String key) {
+    return data.get(key) == null;
   }
 
   // make this <Key,String>?

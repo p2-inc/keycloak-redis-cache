@@ -1,13 +1,17 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
+import static io.phasetwo.keycloak.jpacache.userSession.expiration.RedisSessionExpiration.setUserSessionExpiration;
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
+import static org.keycloak.models.UserSessionModel.SessionPersistenceState.TRANSIENT;
 
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
+import io.phasetwo.keycloak.jpacache.userSession.expiration.SessionExpirationData;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
+import org.keycloak.device.DeviceActivityManager;
 import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import redis.clients.jedis.Jedis;
@@ -22,7 +26,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
           AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
       clientSessionTrx;
 
-  // private final Map<String, UserSession> transientUserSessions = new HashMap<>();
+  private final Map<String, RedisUserSessionAdapter> transientUserSessions = new HashMap<>();
+
   // private final Map<String, CassandraUserSessionAdapter> sessionModels = new HashMap<>();
 
   public RedisUserSessionProvider(KeycloakSession session, Jedis jedis) {
@@ -131,87 +136,77 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       String brokerSessionId,
       String brokerUserId,
       UserSessionModel.SessionPersistenceState persistenceState) {
+    id = id == null ? KeycloakModelUtils.generateId() : id;
     log.tracef(
         "createUserSession(%s, %s, %s, %s)%s",
         id, realm, loginUsername, persistenceState, getShortStackTrace());
 
-    /*
-    UserSession entity = createUserSessionEntityInstance(
-        id,
-        realm.getId(),
-        user.getId(),
-        loginUsername,
-                ipAddress,
-                authMethod,
-                rememberMe,
-                brokerSessionId,
-                brokerUserId,
-                false);
+    RedisUserSessionAdapter entity =
+        createUserSessionEntityInstance(
+            id,
+            realm.getId(),
+            user.getId(),
+            loginUsername,
+            ipAddress,
+            authMethod,
+            rememberMe,
+            brokerSessionId,
+            brokerUserId,
+            false);
 
-        entity.setPersistenceState(persistenceState);
-        setUserSessionExpiration(
-                entity, SessionExpirationData.builder().realm(realm).build());
-        if (TRANSIENT == persistenceState) {
-            if (id == null) {
-                entity.setId(UUID.randomUUID().toString());
-            }
-            transientUserSessions.put(entity.getId(), entity);
-        } else {
-            if (id != null && userSessionRepository.findUserSessionById(id) != null) {
-                throw new ModelDuplicateException("User session exists: " + id);
-            }
-            userSessionRepository.insert(realm, entity);
-        }
+    entity.setPersistenceState(persistenceState);
+    setUserSessionExpiration(entity, SessionExpirationData.builder().realm(realm).build());
+    if (TRANSIENT == persistenceState) {
+      transientUserSessions.put(entity.getId(), entity);
+    } else {
+      if (userSessionTrx.get(new UserSessionKey(id)) != null) {
+        throw new ModelDuplicateException("User session exists: " + id);
+      }
+      userSessionTrx.addForSave(entity);
+    }
 
-        CassandraUserSessionAdapter userSession = entityToAdapterFunc(realm).apply(entity);
+    DeviceActivityManager.attachDevice(entity, session);
 
-        if (userSession != null) {
-            DeviceActivityManager.attachDevice(userSession, session);
-        }
-
-        return userSession;
-    */
-    return null;
+    return entity;
   }
 
   @Override
   public RedisUserSessionAdapter getUserSession(RealmModel realm, String id) {
     Objects.requireNonNull(realm, "The provided realm can't be null!");
-
     log.tracef("getUserSession(%s, %s)%s", realm, id, getShortStackTrace());
-
     if (id == null) return null;
+    return userSessionTrx.get(new UserSessionKey(id));
+  }
 
-    /*
-        CassandraUserSessionAdapter loadedSession = sessionModels.get(id);
-        if (loadedSession == null) {
-            UserSession session = userSessionRepository.findUserSessionById(id);
-            return entityToAdapterFunc(realm).apply(session);
-        } else {
-            return loadedSession;
-        }
-    */
-    return null;
+  private Stream<UserSessionModel> getUserSessionsStreamByIndexKey(
+      String indexKey, RealmModel realm, boolean offline) {
+    log.debugf("[redis] SMEMBERS %s", indexKey);
+    Set<String> strIds = jedis.smembers(indexKey);
+    if (strIds != null && !strIds.isEmpty()) {
+      return strIds.stream()
+          .map(str -> new UserSessionKey(str))
+          .map(k -> userSessionTrx.get(k))
+          .filter(s -> s.getRealmId().equals(realm.getId()))
+          .filter(s -> offline == s.isOffline())
+          .map(s -> (UserSessionModel) s);
+    } else {
+      return Stream.empty();
+    }
   }
 
   @Override
   public Stream<UserSessionModel> getUserSessionsStream(RealmModel realm, UserModel user) {
     log.tracef("getUserSessionsStream(%s, %s)%s", realm, user, getShortStackTrace());
 
-    /*
-        return userSessionRepository.findUserSessionsByUserId(user.getId()).stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .filter(s -> s.getOffline() == null || !s.getOffline())
-                .map(entityToAdapterFunc((realm)));
-    */
-    return null;
+    String indexKey = String.format("user-session:user-index:%s", user.getId());
+    return getUserSessionsStreamByIndexKey(indexKey, realm, false);
   }
 
   @Override
   public Stream<UserSessionModel> getUserSessionsStream(RealmModel realm, ClientModel client) {
     log.tracef("getUserSessionsStream(%s, %s)%s", realm, client, getShortStackTrace());
 
-    /*
+    /* TODO
         return userSessionRepository.findUserSessionsByClientId(client.getId()).stream()
                 .filter(s -> s.getRealmId().equals(realm.getId()))
                 .filter(s -> s.getOffline() == null || !s.getOffline())
@@ -227,7 +222,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         "getUserSessionsStream(%s, %s, %s, %s)%s",
         realm, client, firstResult, maxResults, getShortStackTrace());
 
-    /*
+    /* TODO
         return getUserSessionsStream(realm, client)
                 .filter(s -> s.getRealm().equals(realm))
                 .filter(s -> !s.isOffline())
@@ -243,13 +238,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef(
         "getUserSessionByBrokerUserIdStream(%s, %s)%s", realm, brokerUserId, getShortStackTrace());
 
-    /*
-        return userSessionRepository.findUserSessionsByBrokerUserId(brokerUserId).stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .filter(s -> s.getOffline() == null || !s.getOffline())
-                .map(entityToAdapterFunc((realm)));
-    */
-    return null;
+    String indexKey = String.format("user-session:broker-user-index:%s", brokerUserId);
+    return getUserSessionsStreamByIndexKey(indexKey, realm, false);
   }
 
   @Override
@@ -258,15 +248,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef(
         "getUserSessionByBrokerSessionId(%s, %s)%s", realm, brokerSessionId, getShortStackTrace());
 
-    /*
-        return userSessionRepository.findUserSessionsByBrokerSession(brokerSessionId).stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .filter(s -> s.getOffline() == null || !s.getOffline())
-                .map(entityToAdapterFunc((realm)))
-                .findFirst()
-                .orElse(null);
-    */
-    return null;
+    String indexKey = String.format("user-session:broker-session-index:%s", brokerSessionId);
+    return getUserSessionsStreamByIndexKey(indexKey, realm, false).findFirst().orElse(null);
   }
 
   @Override
@@ -275,27 +258,17 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef(
         "getUserSessionWithPredicate(%s, %s, %s)%s", realm, id, offline, getShortStackTrace());
 
-    /*
-        Stream<CassandraUserSessionAdapter> userSessionEntityStream;
-        if (offline) {
-            userSessionEntityStream = getOfflineUserSessionEntityStream(realm, id)
-                    .map(entityToAdapterFunc(realm))
-                    .filter(Objects::nonNull);
-        } else {
-            CassandraUserSessionAdapter userSession = getUserSession(realm, id);
-            userSessionEntityStream = userSession != null ? Stream.of(userSession) : Stream.empty();
-        }
-
-        return userSessionEntityStream.filter(predicate).findFirst().orElse(null);
-    */
-    return null;
+    RedisUserSessionAdapter a = userSessionTrx.get(new UserSessionKey(id));
+    if (!realm.getId().equals(a.getRealmId())) return null;
+    if (offline != a.isOffline()) return null;
+    return Stream.of(a).filter(predicate).findFirst().orElse(null);
   }
 
   @Override
   public long getActiveUserSessions(RealmModel realm, ClientModel client) {
     log.tracef("getActiveUserSessions(%s, %s)%s", realm, client, getShortStackTrace());
 
-    /*
+    /* TODO
         return userSessionRepository.findUserSessionsByClientId(client.getId()).size();
     */
     return 0;
@@ -305,7 +278,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public Map<String, Long> getActiveClientSessionStats(RealmModel realm, boolean offline) {
     log.tracef("getActiveClientSessionStats(%s, %s)%s", realm, offline, getShortStackTrace());
 
-    /*
+    /* TODO
         return userSessionRepository.findAll().stream()
                 .filter(s -> s.getRealmId().equals(realm.getId()))
                 .filter(s -> s.getOffline() == offline)
@@ -325,76 +298,64 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     log.tracef("removeUserSession(%s, %s)%s", realm, session, getShortStackTrace());
 
-    /*
-        userSessionRepository.deleteUserSession(session.getId());
-        ((CassandraUserSessionAdapter) session).markAsDeleted();
-        sessionModels.remove(session.getId());
-    */
+    RedisUserSessionAdapter a;
+    if (session instanceof RedisUserSessionAdapter) {
+      a = (RedisUserSessionAdapter) session;
+    } else {
+      a = userSessionTrx.get(new UserSessionKey(session.getId()));
+    }
+    userSessionTrx.addForDelete(a);
   }
 
   @Override
   public void removeUserSessions(RealmModel realm, UserModel user) {
     log.tracef("removeUserSessions(%s, %s)%s", realm, user, getShortStackTrace());
 
-    /*
-        userSessionRepository.findUserSessionsByUserId(user.getId()).forEach(session -> {
-            userSessionRepository.deleteUserSession(session.getId());
-
-            CassandraUserSessionAdapter model = sessionModels.get(session.getId());
-            if (model != null) {
-                model.markAsDeleted();
-            }
-
-            sessionModels.remove(session.getId());
-        });
-    */
+    getUserSessionsStream(realm, user)
+        .forEach(
+            a -> {
+              removeSession(a);
+            });
   }
 
-  /*
-  protected void removeAllUserSessions(RealmModel realm) {
-    log.tracef("removeAllUserSessions(%s)%s", realm, getShortStackTrace());
-
-    realm.getClientsStream()
-                .flatMap(c -> userSessionRepository.findUserSessionsByClientId(c.getId()).stream())
-                .forEach(session -> {
-                    userSessionRepository.deleteUserSession(session.getId());
-                    CassandraUserSessionAdapter model = sessionModels.get(session.getId());
-                    if (model != null) {
-                        model.markAsDeleted();
-                    }
-
-                    sessionModels.remove(session.getId());
-                });
+  private void removeSession(UserSessionModel a) {
+    for (AuthenticatedClientSessionModel c : a.getAuthenticatedClientSessions().values()) {
+      if (c instanceof RedisAuthenticatedClientSessionAdapter) {
+        RedisAuthenticatedClientSessionAdapter rc = (RedisAuthenticatedClientSessionAdapter) c;
+        clientSessionTrx.addForDelete(rc);
+      } else {
+        // TODO?
+      }
     }
-  */
+    if (a instanceof RedisUserSessionAdapter) {
+      RedisUserSessionAdapter ra = (RedisUserSessionAdapter) a;
+      userSessionTrx.addForDelete(ra);
+    } else {
+      // TODO?
+    }
+  }
 
   @Override
   public void removeAllExpired() {
     log.tracef("removeAllExpired()%s", getShortStackTrace());
-    // NOOP: Handled by Cassandra-TTL
+    // store ttl
   }
 
   @Override
   public void removeExpired(RealmModel realm) {
     log.tracef("removeExpired(%s)%s", realm, getShortStackTrace());
-    // NOOP: Handled by Cassandra-TTL
+    // store ttl
   }
 
   @Override
   public void removeUserSessions(RealmModel realm) {
-    /*
-        userSessionRepository.findAll().stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .forEach(session -> {
-                    userSessionRepository.deleteUserSession(session.getId());
-                    CassandraUserSessionAdapter model = sessionModels.get(session.getId());
-                    if (model != null) {
-                        model.markAsDeleted();
-                    }
+    log.tracef("removeUserSessions(%s)%s", realm, getShortStackTrace());
+    // TODO make this efficient. maybe with a SCAN/COUNT?
 
-                    sessionModels.remove(session.getId());
-                });
-    */
+    String indexKey = String.format("user-session:realm-index:%s", realm.getId());
+    getUserSessionsStreamByIndexKey(indexKey, realm, false).forEach(a -> removeSession(a));
+    // TODO better way to do offline/online
+    getUserSessionsStreamByIndexKey(indexKey, realm, true).forEach(a -> removeSession(a));
   }
 
   @Override
@@ -405,7 +366,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
   @Override
   public void onClientRemoved(RealmModel realm, ClientModel client) {
-    /*
+    /* TODO
     List<UserSession> relevantSessions = userSessionRepository.findAll().stream()
                 .filter(s -> s.getClientSessions().containsKey(client.getId()))
                 .collect(Collectors.toList());
@@ -431,7 +392,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public UserSessionModel createOfflineUserSession(UserSessionModel userSession) {
     log.tracef("createOfflineUserSession(%s)%s", userSession, getShortStackTrace());
 
-    /*
+    /* TODO
         if (userSession.getNote(CORRESPONDING_SESSION_ID) != null) {
             return getUserSession(userSession.getRealm(), userSession.getNote(CORRESPONDING_SESSION_ID));
         }
@@ -467,7 +428,10 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public UserSessionModel getOfflineUserSession(RealmModel realm, String userSessionId) {
     log.tracef("getOfflineUserSession(%s, %s)%s", realm, userSessionId, getShortStackTrace());
 
-    /*
+    Predicate<UserSessionModel> allowAll = t -> true;
+    return getUserSessionWithPredicate(realm, userSessionId, true, allowAll);
+
+    /* TODO why do they do this CORRESPONDING_SESSION_ID?
       return getOfflineUserSessionEntityStream(realm, userSessionId)
       .filter(Objects::nonNull)
       .findFirst()
@@ -476,7 +440,6 @@ public class RedisUserSessionProvider implements UserSessionProvider {
                         .apply(userSessionRepository.findFirstUserSessionByAttribute(
                                 CORRESPONDING_SESSION_ID, userSessionId)));
     */
-    return null;
   }
 
   @Override
@@ -485,7 +448,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     log.tracef("removeOfflineUserSession(%s, %s)%s", realm, userSession, getShortStackTrace());
 
-    /*
+    /* TODO
         UserSession userSessionEntity = userSessionRepository.findUserSessionById(userSession.getId());
         if (userSessionEntity.getOffline() != null && userSessionEntity.getOffline()) {
             userSessionRepository.deleteUserSession(userSessionEntity);
@@ -514,7 +477,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         "createOfflineClientSession(%s, %s)%s",
         clientSession, offlineUserSession, getShortStackTrace());
 
-    /*
+    /* TODO
         AuthenticatedClientSessionValue clientSessionEntity =
                 createAuthenticatedClientSessionInstance(clientSession, true);
         int currentTime = Time.currentTime();
@@ -549,13 +512,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public Stream<UserSessionModel> getOfflineUserSessionsStream(RealmModel realm, UserModel user) {
     log.tracef("getOfflineUserSessionsStream(%s, %s)%s", realm, user, getShortStackTrace());
 
-    /*
-        return userSessionRepository.findUserSessionsByUserId(user.getId()).stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .filter(s -> s.getOffline() != null && s.getOffline())
-                .map(entityToAdapterFunc(realm));
-    */
-    return null;
+    String indexKey = String.format("user-session:user-index:%s", user.getId());
+    return getUserSessionsStreamByIndexKey(indexKey, realm, true);
   }
 
   @Override
@@ -564,20 +522,16 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef(
         "getOfflineUserSessionByBrokerUserIdStream(%s, %s)%s",
         realm, brokerUserId, getShortStackTrace());
-    /*
-    return userSessionRepository.findUserSessionsByBrokerUserId(brokerUserId).stream()
-            .filter(s -> s.getRealmId().equals(realm.getId()))
-            .filter(s -> s.getOffline() != null && s.getOffline())
-            .map(entityToAdapterFunc(realm));
-    */
-    return null;
+
+    String indexKey = String.format("user-session:broker-user-index:%s", brokerUserId);
+    return getUserSessionsStreamByIndexKey(indexKey, realm, true);
   }
 
   @Override
   public long getOfflineSessionsCount(RealmModel realm, ClientModel client) {
     log.tracef("getOfflineSessionsCount(%s, %s)%s", realm, client, getShortStackTrace());
 
-    /*
+    /* TODO
         return userSessionRepository.findAll().stream()
                 .filter(s -> s.getRealmId().equals(realm.getId()))
                 .filter(s -> s.getOffline() != null && s.getOffline())
@@ -595,7 +549,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         "getOfflineUserSessionsStream(%s, %s, %s, %s)%s",
         realm, client, firstResult, maxResults, getShortStackTrace());
 
-    /*
+    /* TODO
         return userSessionRepository.findAll().stream()
                 .filter(s -> s.getRealmId().equals(realm.getId()))
                 .filter(s -> s.getOffline() != null && s.getOffline())

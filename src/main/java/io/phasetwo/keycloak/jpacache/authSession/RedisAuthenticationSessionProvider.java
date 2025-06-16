@@ -70,7 +70,8 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
             realm.getId(),
             id == null ? KeycloakModelUtils.generateId() : id);
     adapter.setTimestamp(timestamp);
-    adapter.setExpiration(timestamp + authSessionLifespanSeconds);
+    long exp = (timestamp + authSessionLifespanSeconds) * 1000L;
+    adapter.setExpiration(exp);
 
     rootSessionTrx.addForSave(adapter);
 

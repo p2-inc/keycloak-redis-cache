@@ -4,6 +4,7 @@ import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Iterator;
@@ -24,7 +25,7 @@ import redis.clients.jedis.Jedis;
 
 @JBossLog
 public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthenticationSessionKey>
-    implements RootAuthenticationSessionModel {
+    implements RootAuthenticationSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
   private final Jedis jedis;
@@ -92,12 +93,15 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     return getInt("timestamp", 0);
   }
 
-  public void setExpiration(int expiration) {
-    setField("expiration", expiration);
+  @Override
+  public Long getExpiration() {
+    if (isNull("expiration")) return null;
+    return getLong("expiration", 0L);
   }
 
-  public int getExpiration() {
-    return getInt("expiration", 0);
+  @Override
+  public void setExpiration(Long expiration) {
+    setField("expiration", expiration);
   }
 
   // TODO add expiration - figure out how to expire entries with a job or
@@ -152,7 +156,8 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     log.tracef("created authSession %s", adapter);
 
     setTimestamp(timestamp);
-    setExpiration(timestamp + authSessionLifespanSeconds);
+    long exp = (timestamp + authSessionLifespanSeconds) * 1000L;
+    setExpiration(exp);
 
     getAuthenticationSessions().put(tabId, adapter);
 
