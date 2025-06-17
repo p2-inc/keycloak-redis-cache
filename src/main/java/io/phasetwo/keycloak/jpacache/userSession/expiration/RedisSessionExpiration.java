@@ -18,41 +18,54 @@ package io.phasetwo.keycloak.jpacache.userSession.expiration;
 // package de.arbeitsagentur.opdt.keycloak.cassandra.userSession.expiration;
 
 import io.phasetwo.keycloak.common.TimeAdapter;
+import io.phasetwo.keycloak.jpacache.userSession.RedisAuthenticatedClientSessionAdapter;
 import io.phasetwo.keycloak.jpacache.userSession.RedisUserSessionAdapter;
 import org.keycloak.common.util.Time;
+import org.keycloak.models.ClientModel;
+import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 
 public class RedisSessionExpiration {
-  /*
   public static void setClientSessionExpiration(
-      RedisAuthenticatedClientSessionAdapter entity, SessionExpirationData expirationData, ClientModel client) {
+      RedisAuthenticatedClientSessionAdapter entity,
+      SessionExpirationData expirationData,
+      ClientModel client) {
     long timestampMillis = entity.getTimestamp() * 1000L;
-    if (Boolean.TRUE.equals(entity.isOffline())) {
-      long sessionExpires = timestampMillis
-                            + TimeAdapter.fromSecondsToMilliseconds(expirationData.getOfflineSessionIdleTimeout());
+    if (Boolean.TRUE.equals(entity.getUserSession().isOffline())) {
+      long sessionExpires =
+          timestampMillis
+              + TimeAdapter.fromSecondsToMilliseconds(
+                  expirationData.getOfflineSessionIdleTimeout());
       if (expirationData.isOfflineSessionMaxLifespanEnabled()) {
-        sessionExpires = timestampMillis
-                         + TimeAdapter.fromSecondsToMilliseconds(expirationData.getOfflineSessionMaxLifespan());
+        sessionExpires =
+            timestampMillis
+                + TimeAdapter.fromSecondsToMilliseconds(
+                    expirationData.getOfflineSessionMaxLifespan());
 
         long clientOfflineSessionMaxLifespan;
         String clientOfflineSessionMaxLifespanPerClient =
             client.getAttribute(OIDCConfigAttributes.CLIENT_OFFLINE_SESSION_MAX_LIFESPAN);
         if (clientOfflineSessionMaxLifespanPerClient != null
             && !clientOfflineSessionMaxLifespanPerClient.trim().isEmpty()) {
-          clientOfflineSessionMaxLifespan = TimeAdapter.fromSecondsToMilliseconds(
-              Long.parseLong(clientOfflineSessionMaxLifespanPerClient));
+          clientOfflineSessionMaxLifespan =
+              TimeAdapter.fromSecondsToMilliseconds(
+                  Long.parseLong(clientOfflineSessionMaxLifespanPerClient));
         } else {
           clientOfflineSessionMaxLifespan =
-              TimeAdapter.fromSecondsToMilliseconds(expirationData.getClientOfflineSessionMaxLifespan());
+              TimeAdapter.fromSecondsToMilliseconds(
+                  expirationData.getClientOfflineSessionMaxLifespan());
         }
 
         if (clientOfflineSessionMaxLifespan > 0) {
-          long clientOfflineSessionMaxExpiration = timestampMillis + clientOfflineSessionMaxLifespan;
+          long clientOfflineSessionMaxExpiration =
+              timestampMillis + clientOfflineSessionMaxLifespan;
           sessionExpires = Math.min(sessionExpires, clientOfflineSessionMaxExpiration);
         }
       }
 
-      long expiration = timestampMillis
-                        + TimeAdapter.fromSecondsToMilliseconds(expirationData.getOfflineSessionIdleTimeout());
+      long expiration =
+          timestampMillis
+              + TimeAdapter.fromSecondsToMilliseconds(
+                  expirationData.getOfflineSessionIdleTimeout());
 
       long clientOfflineSessionIdleTimeout;
       String clientOfflineSessionIdleTimeoutPerClient =
@@ -60,10 +73,12 @@ public class RedisSessionExpiration {
       if (clientOfflineSessionIdleTimeoutPerClient != null
           && !clientOfflineSessionIdleTimeoutPerClient.trim().isEmpty()) {
         clientOfflineSessionIdleTimeout =
-            TimeAdapter.fromSecondsToMilliseconds(Long.parseLong(clientOfflineSessionIdleTimeoutPerClient));
+            TimeAdapter.fromSecondsToMilliseconds(
+                Long.parseLong(clientOfflineSessionIdleTimeoutPerClient));
       } else {
         clientOfflineSessionIdleTimeout =
-            TimeAdapter.fromSecondsToMilliseconds(expirationData.getClientOfflineSessionIdleTimeout());
+            TimeAdapter.fromSecondsToMilliseconds(
+                expirationData.getClientOfflineSessionIdleTimeout());
       }
 
       if (clientOfflineSessionIdleTimeout > 0) {
@@ -73,10 +88,13 @@ public class RedisSessionExpiration {
 
       entity.setExpiration(Math.min(expiration, sessionExpires));
     } else {
-      long sessionExpires = timestampMillis
-                            + (expirationData.getSsoSessionMaxLifespanRememberMe() > 0
-                               ? TimeAdapter.fromSecondsToMilliseconds(expirationData.getSsoSessionMaxLifespanRememberMe())
-                               : TimeAdapter.fromSecondsToMilliseconds(expirationData.getSsoSessionMaxLifespan()));
+      long sessionExpires =
+          timestampMillis
+              + (expirationData.getSsoSessionMaxLifespanRememberMe() > 0
+                  ? TimeAdapter.fromSecondsToMilliseconds(
+                      expirationData.getSsoSessionMaxLifespanRememberMe())
+                  : TimeAdapter.fromSecondsToMilliseconds(
+                      expirationData.getSsoSessionMaxLifespan()));
 
       long clientSessionMaxLifespan;
       String clientSessionMaxLifespanPerClient =
@@ -84,7 +102,8 @@ public class RedisSessionExpiration {
       if (clientSessionMaxLifespanPerClient != null
           && !clientSessionMaxLifespanPerClient.trim().isEmpty()) {
         clientSessionMaxLifespan =
-            TimeAdapter.fromSecondsToMilliseconds(Long.parseLong(clientSessionMaxLifespanPerClient));
+            TimeAdapter.fromSecondsToMilliseconds(
+                Long.parseLong(clientSessionMaxLifespanPerClient));
       } else {
         clientSessionMaxLifespan =
             TimeAdapter.fromSecondsToMilliseconds(expirationData.getClientSessionMaxLifespan());
@@ -95,10 +114,13 @@ public class RedisSessionExpiration {
         sessionExpires = Math.min(sessionExpires, clientSessionMaxExpiration);
       }
 
-      long expiration = timestampMillis
-                        + (expirationData.getSsoSessionIdleTimeoutRememberMe() > 0
-                           ? TimeAdapter.fromSecondsToMilliseconds(expirationData.getSsoSessionIdleTimeoutRememberMe())
-                           : TimeAdapter.fromSecondsToMilliseconds(expirationData.getSsoSessionIdleTimeout()));
+      long expiration =
+          timestampMillis
+              + (expirationData.getSsoSessionIdleTimeoutRememberMe() > 0
+                  ? TimeAdapter.fromSecondsToMilliseconds(
+                      expirationData.getSsoSessionIdleTimeoutRememberMe())
+                  : TimeAdapter.fromSecondsToMilliseconds(
+                      expirationData.getSsoSessionIdleTimeout()));
 
       long clientSessionIdleTimeout;
       String clientSessionIdleTimeoutPerClient =
@@ -106,7 +128,8 @@ public class RedisSessionExpiration {
       if (clientSessionIdleTimeoutPerClient != null
           && !clientSessionIdleTimeoutPerClient.trim().isEmpty()) {
         clientSessionIdleTimeout =
-            TimeAdapter.fromSecondsToMilliseconds(Long.parseLong(clientSessionIdleTimeoutPerClient));
+            TimeAdapter.fromSecondsToMilliseconds(
+                Long.parseLong(clientSessionIdleTimeoutPerClient));
       } else {
         clientSessionIdleTimeout =
             TimeAdapter.fromSecondsToMilliseconds(expirationData.getClientSessionIdleTimeout());
@@ -120,7 +143,7 @@ public class RedisSessionExpiration {
       entity.setExpiration(Math.min(expiration, sessionExpires));
     }
   }
-  */
+
   public static void setUserSessionExpiration(
       RedisUserSessionAdapter entity, SessionExpirationData expirationData) {
     long timestampMillis = entity.getTimestamp() * 1000L;

@@ -6,11 +6,11 @@ import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
 import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProvider;
+import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.UserSessionProviderFactory;
-import lombok.extern.jbosslog.JBossLog;
 
 @JBossLog
 @SuppressWarnings("rawtypes")

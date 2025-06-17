@@ -1,6 +1,6 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
-import static io.phasetwo.keycloak.jpacache.userSession.expiration.RedisSessionExpiration.setUserSessionExpiration;
+import static io.phasetwo.keycloak.jpacache.userSession.expiration.RedisSessionExpiration.*;
 import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 import static org.keycloak.models.UserSessionModel.SessionPersistenceState.TRANSIENT;
 
@@ -58,27 +58,55 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       throw new IllegalStateException("User session is null.");
     }
 
-    /* TODO
-        UserSession userSessionEntity = ((CassandraUserSessionAdapter) userSession).getUserSessionEntity();
+    RedisAuthenticatedClientSessionAdapter entity =
+        createAuthenticatedClientSessionEntityInstance(null, client.getId(), false);
 
-        if (userSessionEntity == null) {
-            throw new IllegalStateException("User session entity does not exist: " + userSession.getId());
-        }
+    // TODO started?
+    // String started = entity.getTimestamp() != null
+    //                  ?
+    // String.valueOf(TimeAdapter.fromMilliSecondsToSeconds(entity.getTimestamp()))
+    //                  : String.valueOf(0);
+    // entity.getNotes().put(AuthenticatedClientSessionModel.STARTED_AT_NOTE, started);
 
-        AuthenticatedClientSessionValue entity =
-                createAuthenticatedClientSessionEntityInstance(null, client.getId(), false);
-        String started = entity.getTimestamp() != null
-                ? String.valueOf(TimeAdapter.fromMilliSecondsToSeconds(entity.getTimestamp()))
-                : String.valueOf(0);
-        entity.getNotes().put(AuthenticatedClientSessionModel.STARTED_AT_NOTE, started);
-        setClientSessionExpiration(
-                entity, SessionExpirationData.builder().realm(realm).build(), client);
+    RedisUserSessionAdapter userSessionEntity = getUserSessionAdapter(userSession);
+    if (userSessionEntity == null) {
+      throw new IllegalStateException("User session entity does not exist: " + userSession.getId());
+    }
 
-        userSessionRepository.addClientSession(realm, userSessionEntity, entity);
+    setClientSessionExpiration(
+        entity, SessionExpirationData.builder().realm(realm).build(), client);
 
-        return userSession.getAuthenticatedClientSessionByClient(client.getId());
-    */
-    return null;
+    userSessionEntity.getAuthenticatedClientSessions().put(client.getId(), entity);
+    return entity;
+  }
+
+  /** Convert the UserSessionModel to a RedisUserSessionAdapter or load it from the transaction */
+  private RedisUserSessionAdapter getUserSessionAdapter(UserSessionModel userSession) {
+    RedisUserSessionAdapter userSessionEntity;
+    if (userSession instanceof RedisUserSessionAdapter) {
+      userSessionEntity = (RedisUserSessionAdapter) userSession;
+    } else {
+      userSessionEntity = userSessionTrx.get(new UserSessionKey(userSession.getId()));
+    }
+    return userSessionEntity;
+  }
+
+  /**
+   * Convert the AuthenticatedClientSessionModel to a RedisAuthenticatedClientSessionAdapter or load
+   * it from the transaction
+   */
+  private RedisAuthenticatedClientSessionAdapter getAuthenticatedClientSessionAdapter(
+      AuthenticatedClientSessionModel authenticatedClientSession) {
+    RedisAuthenticatedClientSessionAdapter authenticatedClientSessionEntity;
+    if (authenticatedClientSession instanceof RedisAuthenticatedClientSessionAdapter) {
+      authenticatedClientSessionEntity =
+          (RedisAuthenticatedClientSessionAdapter) authenticatedClientSession;
+    } else {
+      authenticatedClientSessionEntity =
+          clientSessionTrx.get(
+              new AuthenticatedClientSessionKey(authenticatedClientSession.getId()));
+    }
+    return authenticatedClientSessionEntity;
   }
 
   @Override
@@ -92,11 +120,16 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       return null;
     }
 
-    /* TODO
-    // Reload Session to filter out transient sessions
-    CassandraUserSessionAdapter currentSession = getUserSession(userSession.getRealm(), userSession.getId());
-    return currentSession == null ? null : currentSession.getAuthenticatedClientSessionByClient(client.getId());
-    */
+    RedisAuthenticatedClientSessionAdapter entity =
+        clientSessionTrx.get(new AuthenticatedClientSessionKey(clientSessionId));
+
+    if (entity != null
+        && entity.getParentId().equals(userSession.getId())
+        && entity.getClientUuid().equals(client.getId())
+        && entity.getUserSession().isOffline() == offline) {
+      return entity;
+    }
+
     return null;
   }
 
@@ -696,8 +729,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       boolean offline) {
     int timestamp = Time.currentTime();
     id = id == null ? KeycloakModelUtils.generateId() : id;
-    RedisUserSessionAdapter entity =
-        new RedisUserSessionAdapter(session, jedis, clientSessionTrx, id);
+    RedisUserSessionAdapter entity = userSessionTrx.get(new UserSessionKey(id));
     entity.setUserId(userId);
     entity.setRealmId(realmId);
     entity.setLoginUsername(loginUsername);
@@ -717,7 +749,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     int timestamp = Time.currentTime();
     id = id == null ? KeycloakModelUtils.generateId() : id;
     RedisAuthenticatedClientSessionAdapter entity =
-        new RedisAuthenticatedClientSessionAdapter(session, id);
+        clientSessionTrx.get(new AuthenticatedClientSessionKey(id));
     // TODO offline?
     entity.setClientUuid(clientId);
     entity.setTimestamp(timestamp);

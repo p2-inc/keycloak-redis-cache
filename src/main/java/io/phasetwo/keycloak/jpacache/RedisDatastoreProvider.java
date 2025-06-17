@@ -33,5 +33,4 @@ public class RedisDatastoreProvider extends DefaultDatastoreProvider {
   public UserSessionProvider userSessions() {
     return session.getProvider(UserSessionProvider.class);
   }
-     
 }
