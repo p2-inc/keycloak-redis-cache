@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -180,6 +182,89 @@ public abstract class MapEntity<K extends Key> {
           }
         }
         return count;
+      }
+    };
+  }
+
+  public Set<String> getSet(String prefix) {
+    final String prefixWithColon = prefix + ":";
+
+    return new AbstractSet<String>() {
+
+      private Set<String> computeSet() {
+        Set<String> result = Sets.newHashSet();
+        for (String key : data.keySet()) {
+          if (key.startsWith(prefixWithColon)) {
+            result.add(key.substring(prefixWithColon.length()));
+          }
+        }
+        return result;
+      }
+
+      private String toKey(String item) {
+        return prefixWithColon + item;
+      }
+
+      @Override
+      public boolean add(String value) {
+        String fullKey = toKey(value);
+        if (data.containsKey(fullKey)) return false;
+        setField(fullKey, ""); // Use empty string as value
+        return true;
+      }
+
+      @Override
+      public boolean remove(Object o) {
+        if (!(o instanceof String)) return false;
+        String fullKey = toKey((String) o);
+        if (!data.containsKey(fullKey)) return false;
+        setField(fullKey, null);
+        return true;
+      }
+
+      @Override
+      public boolean contains(Object o) {
+        if (!(o instanceof String)) return false;
+        return data.containsKey(toKey((String) o));
+      }
+
+      @Override
+      public Iterator<String> iterator() {
+        Iterator<String> base = computeSet().iterator();
+        return new Iterator<String>() {
+          private String current = null;
+
+          @Override
+          public boolean hasNext() {
+            return base.hasNext();
+          }
+
+          @Override
+          public String next() {
+            current = base.next();
+            return current;
+          }
+
+          @Override
+          public void remove() {
+            if (current != null) {
+              setField(toKey(current), null);
+            }
+          }
+        };
+      }
+
+      @Override
+      public int size() {
+        return computeSet().size();
+      }
+
+      @Override
+      public void clear() {
+        Set<String> keysToRemove = computeSet();
+        for (String val : keysToRemove) {
+          setField(toKey(val), null);
+        }
       }
     };
   }
