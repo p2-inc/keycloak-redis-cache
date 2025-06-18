@@ -1,6 +1,5 @@
 package io.phasetwo.keycloak.jpacache;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.util.AbstractMap;
@@ -10,7 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
-import org.keycloak.util.JsonSerialization;
 
 @JBossLog
 public abstract class MapEntity<K extends Key> {
@@ -51,44 +49,6 @@ public abstract class MapEntity<K extends Key> {
       }
     } else {
       log.debugf("field isn't different. skipping. %s %s", key, value);
-    }
-  }
-
-  protected void mapToField(Map<String, String> map, String fieldName) {
-    try {
-      if (map == null) setField(fieldName, null);
-      else setField(fieldName, JsonSerialization.writeValueAsString(map));
-    } catch (Exception ignore) {
-    }
-  }
-
-  protected Map<String, String> mapFromField(String fieldName) {
-    String f = getString(fieldName);
-    if (f != null) {
-      try {
-        return JsonSerialization.readValue(f, new TypeReference<Map<String, String>>() {});
-      } catch (Exception ignore) {
-      }
-    }
-    return Maps.newHashMap();
-  }
-
-  protected Set<String> setFromField(String fieldName) {
-    String f = getString(fieldName);
-    if (f != null) {
-      try {
-        return JsonSerialization.readValue(f, new TypeReference<Set<String>>() {});
-      } catch (Exception ignore) {
-      }
-    }
-    return Sets.newHashSet();
-  }
-
-  protected void setToField(Set<String> set, String fieldName) {
-    try {
-      if (set == null) setField(fieldName, null);
-      else setField(fieldName, JsonSerialization.writeValueAsString(set));
-    } catch (Exception ignore) {
     }
   }
 
@@ -189,7 +149,7 @@ public abstract class MapEntity<K extends Key> {
   public Set<String> getSet(String prefix) {
     final String prefixWithColon = prefix + ":";
     final String valueSentinel = String.format("<set:%s>", prefix);
-    
+
     return new AbstractSet<String>() {
 
       private Set<String> computeSet() {

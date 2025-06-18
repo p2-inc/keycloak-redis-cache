@@ -20,12 +20,6 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   private final KeycloakSession session;
 
   private RootAuthenticationSessionModel parent;
-  private Map<String, String> authNotes;
-  private Map<String, String> clientNotes;
-  private Set<String> clientScopes;
-  private Map<String, String> executionStatus;
-  private Set<String> requiredActions;
-  private Map<String, String> userSessionNotes;
 
   public RedisAuthenticationSessionAdapter(KeycloakSession session, String clientId, String tabId) {
     this(session, clientId, tabId, null);
@@ -123,24 +117,21 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
 
   @Override
   public Set<String> getClientScopes() {
-    if (clientScopes == null) {
-      clientScopes = setFromField("clientScopes");
-    }
-    return clientScopes;
+    return getSet("clientScopes");
   }
 
   @Override
   public void setClientScopes(Set<String> clientScopes) {
-    this.clientScopes = clientScopes;
-    setToField(clientScopes.isEmpty() ? null : clientScopes, "clientScopes");
+    Set<String> scopes = getSet("clientScopes");
+    scopes.clear();
+    for (String clientScope : clientScopes) {
+      scopes.add(clientScope);
+    }
   }
 
   @Override
   public Map<String, String> getClientNotes() {
-    if (clientNotes == null) {
-      clientNotes = mapFromField("clientNotes");
-    }
-    return clientNotes;
+    return getMap("clientNotes");
   }
 
   @Override
@@ -151,26 +142,20 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   @Override
   public void setClientNote(String name, String value) {
     getClientNotes().put(name, value);
-    mapToField(clientNotes, "clientNotes");
   }
 
   @Override
   public void removeClientNote(String name) {
     getClientNotes().remove(name);
-    mapToField(clientNotes.isEmpty() ? null : clientNotes, "clientNotes");
   }
 
   @Override
   public void clearClientNotes() {
     getClientNotes().clear();
-    mapToField(null, "clientNotes");
   }
 
   public Map<String, String> getAuthNotes() {
-    if (authNotes == null) {
-      authNotes = mapFromField("authNotes");
-    }
-    return authNotes;
+    return getMap("authNotes");
   }
 
   @Override
@@ -181,59 +166,46 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   @Override
   public void setAuthNote(String name, String value) {
     getAuthNotes().put(name, value);
-    mapToField(authNotes.isEmpty() ? null : authNotes, "authNotes");
   }
 
   @Override
   public void removeAuthNote(String name) {
     getAuthNotes().remove(name);
-    mapToField(authNotes.isEmpty() ? null : authNotes, "authNotes");
   }
 
   @Override
   public void clearAuthNotes() {
     getAuthNotes().clear();
-    mapToField(null, "authNotes");
+  }
+
+  @Override
+  public Map<String, String> getUserSessionNotes() {
+    return getMap("userSessionNotes");
   }
 
   @Override
   public void setUserSessionNote(String name, String value) {
     getUserSessionNotes().put(name, value);
-    mapToField(userSessionNotes, "userSessionNotes");
-  }
-
-  @Override
-  public Map<String, String> getUserSessionNotes() {
-    if (userSessionNotes == null) {
-      userSessionNotes = mapFromField("userSessionNotes");
-    }
-    return userSessionNotes;
   }
 
   @Override
   public void clearUserSessionNotes() {
     getUserSessionNotes().clear();
-    mapToField(null, "userSessionNotes");
   }
 
   @Override
   public Set<String> getRequiredActions() {
-    if (requiredActions == null) {
-      requiredActions = setFromField("requiredActions");
-    }
-    return requiredActions;
+    return getSet("requiredActions");
   }
 
   @Override
   public void addRequiredAction(String action) {
     getRequiredActions().add(action);
-    setToField(requiredActions, "requiredActions");
   }
 
   @Override
   public void removeRequiredAction(String action) {
     getRequiredActions().remove(action);
-    setToField(requiredActions.isEmpty() ? null : requiredActions, "requiredActions");
   }
 
   @Override
@@ -247,10 +219,7 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   }
 
   public Map<String, String> getExecStatus() {
-    if (executionStatus == null) {
-      executionStatus = mapFromField("executionStatus");
-    }
-    return executionStatus;
+    return getMap("executionStatus");
   }
 
   @Override
@@ -260,19 +229,18 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
             Collectors.toMap(
                 Map.Entry::getKey,
                 entry -> AuthenticationSessionModel.ExecutionStatus.valueOf(entry.getValue())));
+    // todo this is a clone of the map so modifications won't work
   }
 
   @Override
   public void setExecutionStatus(
       String authenticator, AuthenticationSessionModel.ExecutionStatus status) {
     getExecStatus().put(authenticator, status.name());
-    mapToField(executionStatus, "executionStatus");
   }
 
   @Override
   public void clearExecutionStatus() {
     getExecStatus().clear();
-    mapToField(null, "executionStatus");
   }
 
   @Override
@@ -282,7 +250,7 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     if (getUserId() == null) return null;
     return session.users().getUserById(getRealm(), getUserId());
 
-    /*
+    /* TODO transient/lightweight users
     if (updater.getEntity().getAuthUserId() == null) {
       return null;
     }
@@ -319,7 +287,7 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
       setUserId(user.getId());
     }
 
-    /*
+    /* TODO transient/lightweight users
     if (user == null) {
       updater.getEntity().setAuthUserId(null);
       setUserSessionNote(SESSION_NOTE_LIGHTWEIGHT_USER, null);

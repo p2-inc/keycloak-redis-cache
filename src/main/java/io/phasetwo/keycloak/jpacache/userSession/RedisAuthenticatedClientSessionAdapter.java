@@ -1,7 +1,6 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import java.util.Collections;
@@ -18,8 +17,6 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
     implements AuthenticatedClientSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
-
-  private Map<String, String> notes;
 
   public RedisAuthenticatedClientSessionAdapter(KeycloakSession session, String id) {
     this(session, id, null);
@@ -66,20 +63,19 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public void setNote(String name, String value) {
     getNotes().put(name, value);
-    mapToField(notes, "notes");
   }
 
   public void setNotes(Map<String, String> notes) {
-    this.notes = Maps.newHashMap(notes);
-    mapToField(notes, "notes");
+    Map<String, String> ns = getNotes();
+    ns.clear();
+    for (Map.Entry<String, String> note : notes.entrySet()) {
+      ns.put(note.getKey(), note.getValue());
+    }
   }
 
   @Override
   public Map<String, String> getNotes() {
-    if (notes == null) {
-      notes = mapFromField("notes");
-    }
-    return notes;
+    return getMap("notes");
   }
 
   @Override
@@ -90,7 +86,6 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public void removeNote(String name) {
     getNotes().remove(name);
-    mapToField(notes.isEmpty() ? null : notes, "notes");
   }
 
   @Override

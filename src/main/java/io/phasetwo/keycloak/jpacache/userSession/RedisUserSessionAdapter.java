@@ -31,7 +31,6 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   private Map<String, AuthenticatedClientSessionModel> clientSessions = Maps.newHashMap();
   private boolean clientSessionsInitialized = false;
-  private Map<String, String> notes;
 
   public RedisUserSessionAdapter(
       KeycloakSession session,
@@ -215,20 +214,19 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   @Override
   public void setNote(String name, String value) {
     getNotes().put(name, value);
-    mapToField(notes, "notes");
   }
 
   public void setNotes(Map<String, String> notes) {
-    this.notes = Maps.newHashMap(notes);
-    mapToField(notes, "notes");
+    Map<String, String> ns = getNotes();
+    ns.clear();
+    for (Map.Entry<String, String> note : notes.entrySet()) {
+      ns.put(note.getKey(), note.getValue());
+    }
   }
 
   @Override
   public Map<String, String> getNotes() {
-    if (notes == null) {
-      notes = mapFromField("notes");
-    }
-    return notes;
+    return getMap("notes");
   }
 
   @Override
@@ -239,7 +237,6 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   @Override
   public void removeNote(String name) {
     getNotes().remove(name);
-    mapToField(notes.isEmpty() ? null : notes, "notes");
   }
 
   @Override
