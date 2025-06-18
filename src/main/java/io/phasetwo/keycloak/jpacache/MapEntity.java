@@ -188,7 +188,8 @@ public abstract class MapEntity<K extends Key> {
 
   public Set<String> getSet(String prefix) {
     final String prefixWithColon = prefix + ":";
-
+    final String valueSentinel = String.format("<set:%s>", prefix);
+    
     return new AbstractSet<String>() {
 
       private Set<String> computeSet() {
@@ -209,7 +210,7 @@ public abstract class MapEntity<K extends Key> {
       public boolean add(String value) {
         String fullKey = toKey(value);
         if (data.containsKey(fullKey)) return false;
-        setField(fullKey, ""); // Use empty string as value
+        setField(fullKey, valueSentinel); // Use empty string as value
         return true;
       }
 
