@@ -27,7 +27,21 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     this.adapterSupplier = adapterSupplier;
   }
 
+  /**
+   * Gets the value if present at the key. Creates a new instance and registers it for saving using
+   * the adapter supplier if none is present at the key.
+   */
   public A get(K k) {
+    A model = getIfPresent(k);
+    if (model == null) {
+      model = adapterSupplier.newInstance(k);
+      cache.put(k, model);
+    }
+    return model;
+  }
+
+  /** Gets the value only if present at the key. Returns null otherwise. */
+  public A getIfPresent(K k) {
     if (k == null) return null;
     if (toDelete.contains(k)) return null;
     A model = cache.get(k);
@@ -35,13 +49,20 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     String key = k.key();
     log.debugf("[redis] HGETALL %s", key);
     Map<String, String> data = jedis.hgetAll(key);
-    if (data == null || data.isEmpty()) return null;
-    log.debugf("found data for %s %s", key, data);
-    model = adapterSupplier.newInstance(k, data);
-    cache.put(k, model);
-    return model;
+    if (data != null && !data.isEmpty()) {
+      log.debugf("found data for %s %s", key, data);
+      model = adapterSupplier.newInstance(k, data);
+      cache.put(k, model);
+      return model;
+    } else {
+      return null;
+    }
   }
 
+  /**
+   * Gets the a map of value if present at the given keys. Return value is a map of the key to the
+   * value. May be fewer results if some keys don't have values.
+   */
   public Map<K, A> getAll(Collection<K> keys) {
     if (keys == null || keys.isEmpty()) return Maps.newLinkedHashMap();
     Pipeline pipeline = jedis.pipelined();
