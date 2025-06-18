@@ -1,7 +1,6 @@
 package io.phasetwo.keycloak.jpacache.loginFailure;
 
-import com.google.common.collect.Maps;
-import java.util.Map;
+import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.KeycloakSession;
@@ -15,31 +14,32 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
   private final Jedis jedis;
   private final KeycloakSession session;
-  private final Map<String, RedisUserLoginFailureAdapter> cache = Maps.newHashMap();
-  private final RedisUserLoginFailureTransaction tx;
+  private final RedisChangelogTransaction<LoginFailureKey, RedisUserLoginFailureAdapter>
+      loginFailureTrx;
 
   public RedisUserLoginFailureProvider(KeycloakSession session, Jedis jedis) {
     this.jedis = jedis;
     this.session = session;
-    this.tx = new RedisUserLoginFailureTransaction(jedis);
-    session.getTransactionManager().enlistAfterCompletion(tx);
+    this.loginFailureTrx =
+        new RedisChangelogTransaction<>(jedis, new UserLoginFailureAdapterSupplier(session, jedis));
+    ;
+    session.getTransactionManager().enlistAfterCompletion(loginFailureTrx);
   }
 
   @Override
   public UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
-    return tx.get(realm.getId(), userId);
+    return loginFailureTrx.get(new LoginFailureKey(realm.getId(), userId));
   }
 
   @Override
   public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
-    RedisUserLoginFailureAdapter model = new RedisUserLoginFailureAdapter(realm.getId(), userId);
-    tx.addForSave(model);
-    return model;
+    return loginFailureTrx.get(new LoginFailureKey(realm.getId(), userId));
   }
 
   @Override
   public void removeUserLoginFailure(RealmModel realm, String userId) {
-    tx.addForDelete(new LoginFailureKey(realm.getId(), userId));
+    loginFailureTrx.addForDelete(
+        ((RedisUserLoginFailureAdapter) getUserLoginFailure(realm, userId)));
   }
 
   @Override
@@ -48,13 +48,11 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> userIds = jedis.smembers(indexKey);
     for (String userId : userIds) {
-      tx.addForDelete(new LoginFailureKey(realm.getId(), userId));
+      // TODO this is way too inefficient. need to revisit
+      removeUserLoginFailure(realm, userId);
     }
   }
 
   @Override
-  public void close() {
-    // jedis.close(); needs to be closed in order to return to the pool.
-    // Check RedisConnectionProvider.close() method
-  }
+  public void close() {}
 }

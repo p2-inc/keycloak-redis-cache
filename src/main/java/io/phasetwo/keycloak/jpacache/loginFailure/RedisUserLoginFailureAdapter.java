@@ -5,7 +5,8 @@ import io.phasetwo.keycloak.jpacache.MapEntity;
 import java.util.Map;
 import org.keycloak.models.UserLoginFailureModel;
 
-public class RedisUserLoginFailureAdapter extends MapEntity implements UserLoginFailureModel {
+public class RedisUserLoginFailureAdapter extends MapEntity<LoginFailureKey>
+    implements UserLoginFailureModel {
 
   public RedisUserLoginFailureAdapter(String realmId, String userId) {
     this(realmId, userId, null);
