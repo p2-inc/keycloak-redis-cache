@@ -3,6 +3,7 @@ package io.phasetwo.keycloak.jpacache;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -110,6 +111,77 @@ public abstract class MapEntity<K extends Key> {
 
   protected boolean isNull(String key) {
     return data.get(key) == null;
+  }
+
+  public Map<String, String> getMap(String prefix) {
+    final String prefixWithColon = prefix + ":";
+
+    return new AbstractMap<String, String>() {
+      @Override
+      public Set<Entry<String, String>> entrySet() {
+        Set<Entry<String, String>> result = Sets.newHashSet();
+        for (Map.Entry<String, String> entry : data.entrySet()) {
+          if (entry.getKey().startsWith(prefixWithColon)) {
+            String subKey = entry.getKey().substring(prefixWithColon.length());
+            result.add(new AbstractMap.SimpleEntry<>(subKey, entry.getValue()));
+          }
+        }
+        return result;
+      }
+
+      @Override
+      public String get(Object key) {
+        if (!(key instanceof String)) return null;
+        return data.get(prefixWithColon + key);
+      }
+
+      @Override
+      public String put(String key, String value) {
+        String fullKey = prefixWithColon + key;
+        String oldValue = data.get(fullKey);
+        setField(fullKey, value);
+        return oldValue;
+      }
+
+      @Override
+      public String remove(Object key) {
+        if (!(key instanceof String)) return null;
+        String fullKey = prefixWithColon + key;
+        String oldValue = data.get(fullKey);
+        setField(fullKey, null);
+        return oldValue;
+      }
+
+      @Override
+      public boolean containsKey(Object key) {
+        if (!(key instanceof String)) return false;
+        return data.containsKey(prefixWithColon + key);
+      }
+
+      @Override
+      public void clear() {
+        Set<String> keysToRemove = Sets.newHashSet();
+        for (String k : data.keySet()) {
+          if (k.startsWith(prefixWithColon)) {
+            keysToRemove.add(k);
+          }
+        }
+        for (String k : keysToRemove) {
+          setField(k, null);
+        }
+      }
+
+      @Override
+      public int size() {
+        int count = 0;
+        for (String k : data.keySet()) {
+          if (k.startsWith(prefixWithColon)) {
+            count++;
+          }
+        }
+        return count;
+      }
+    };
   }
 
   // make this <Key,String>?
