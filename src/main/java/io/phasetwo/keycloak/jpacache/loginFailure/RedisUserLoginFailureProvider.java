@@ -28,7 +28,7 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
   @Override
   public UserLoginFailureModel getUserLoginFailure(RealmModel realm, String userId) {
-    return loginFailureTrx.get(new LoginFailureKey(realm.getId(), userId));
+    return loginFailureTrx.getIfPresent(new LoginFailureKey(realm.getId(), userId));
   }
 
   @Override
@@ -38,8 +38,10 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
   @Override
   public void removeUserLoginFailure(RealmModel realm, String userId) {
-    loginFailureTrx.addForDelete(
-        ((RedisUserLoginFailureAdapter) getUserLoginFailure(realm, userId)));
+    UserLoginFailureModel lf = getUserLoginFailure(realm, userId);
+    if (lf != null) {
+      loginFailureTrx.addForDelete((RedisUserLoginFailureAdapter) lf);
+    }
   }
 
   @Override
