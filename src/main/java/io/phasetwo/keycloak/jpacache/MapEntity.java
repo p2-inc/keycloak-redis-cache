@@ -259,4 +259,9 @@ public abstract class MapEntity<K extends Key> {
   public void markForDelete() {
     markedForDelete = true;
   }
+
+  @Override
+  public String toString() {
+    return data.toString();
+  }
 }

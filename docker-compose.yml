@@ -22,7 +22,7 @@ services:
       KC_HTTP_RELATIVE_PATH: /auth
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_LOG_LEVEL: INFO,io.phasetwo.keycloak.jpacache:TRACE
+      KC_LOG_LEVEL: INFO,org.keycloak:DEBUG,io.phasetwo.keycloak.jpacache:TRACE
       JAVA_OPTS: -agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true
     ports:
       - 8080:8080

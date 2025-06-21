@@ -217,6 +217,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     // https://github.com/keycloak/keycloak/blob/archive/map-store/model/map/src/main/java/org/keycloak/models/map/userSession/MapUserSessionProvider.java#L193-L199
     a = userSessionTrx.getIfPresent(new UserSessionKey(id));
     if (a != null && Objects.equals(a.getRealmId(), realm.getId()) && !a.isOffline()) {
+      log.tracef("found userSession at %s %s", id, a);
       return a;
     }
 
