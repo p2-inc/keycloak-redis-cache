@@ -110,8 +110,10 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
     // Keys to watch: all affected session keys + index
     for (A model : cache.values()) {
-      log.debugf("adding key to WATCH %s", model.getKey().key());
-      keysToWatch.add(model.getKey().key());
+      if (!toDelete.contains(model.getKey())) {
+        log.debugf("adding key to WATCH %s", model.getKey().key());
+        keysToWatch.add(model.getKey().key());
+      }
     }
     for (A model : toDelete) {
       log.debugf("adding key to WATCH %s", model.getKey().key());
@@ -128,6 +130,8 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         jedis.watch(kw);
       }
 
+      // Jedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not need a
+      // separate Pipeline to reduce round trips inside a MULTI.
       log.debugf("[redis] MULTI");
       Transaction txn = jedis.multi();
 

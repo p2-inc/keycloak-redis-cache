@@ -90,6 +90,11 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     return clientSessions;
   }
 
+  public void addAuthenticatedClientSession(AuthenticatedClientSessionModel clientSession) {
+    if (!clientSessionsInitialized) getAuthenticatedClientSessions();
+    clientSessions.put(clientSession.getClient().getId(), clientSession);
+  }
+
   @Override
   public int getStarted() {
     return getInt("started", 0);
@@ -285,8 +290,8 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     setBrokerUserId(brokerUserId);
     setTimestamp(Time.currentTime());
     setLastSessionRefresh(Time.currentTime());
-    setState(null);
     setNotes(Maps.newHashMap());
+    removeField("state");
     removeAuthenticatedClientSessions(Sets.newHashSet(getAuthenticatedClientSessions().keySet()));
 
     // todo

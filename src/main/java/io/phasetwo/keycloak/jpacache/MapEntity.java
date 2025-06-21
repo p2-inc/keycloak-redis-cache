@@ -13,6 +13,8 @@ import lombok.extern.jbosslog.JBossLog;
 @JBossLog
 public abstract class MapEntity<K extends Key> {
 
+  public static final String NULL_SENTINEL = "<null:ohRL7DzMSx>";
+
   private final K key;
   private final Map<String, String> data;
   private final Set<String> dirtyFields = Sets.newHashSet();
@@ -30,49 +32,46 @@ public abstract class MapEntity<K extends Key> {
     }
   }
 
-  // maybe the data map is a Map<String,Function<Object,String>> so that if we have
-  // serialized data (e.g. "notes" map fields) we can update these during the
-  // session but only serialize them once if the field is dirty
+  protected void removeField(String key) {
+    data.remove(key);
+    deletedFields.add(key);
+  }
 
   protected void setField(String key, Object value) {
     log.debugf("setField %s %s", key, value);
-    String strVal = value == null ? null : String.valueOf(value);
+    String strVal = value == null ? NULL_SENTINEL : String.valueOf(value);
     String current = data.get(key);
     if (!Objects.equals(current, strVal)) {
-      if (strVal == null) {
-        data.remove(key);
-        deletedFields.add(key);
-      } else {
-        data.put(key, strVal);
-        dirtyFields.add(key);
-        deletedFields.remove(key);
-      }
+      data.put(key, strVal);
+      dirtyFields.add(key);
+      deletedFields.remove(key);
     } else {
       log.debugf("field isn't different. skipping. %s %s", key, value);
     }
   }
 
   protected boolean getBool(String key, boolean defaultValue) {
-    String val = data.get(key);
+    String val = getString(key);
     return val != null ? Boolean.parseBoolean(val) : defaultValue;
   }
 
   protected int getInt(String key, int defaultValue) {
-    String val = data.get(key);
+    String val = getString(key);
     return val != null ? Integer.parseInt(val) : defaultValue;
   }
 
   protected long getLong(String key, long defaultValue) {
-    String val = data.get(key);
+    String val = getString(key);
     return val != null ? Long.parseLong(val) : defaultValue;
   }
 
   protected String getString(String key) {
-    return data.get(key);
+    String val = data.get(key);
+    return NULL_SENTINEL.equals(val) ? null : val;
   }
 
   protected boolean isNull(String key) {
-    return data.get(key) == null;
+    return getString(key) == null;
   }
 
   public Map<String, String> getMap(String prefix) {
@@ -94,13 +93,13 @@ public abstract class MapEntity<K extends Key> {
       @Override
       public String get(Object key) {
         if (!(key instanceof String)) return null;
-        return data.get(prefixWithColon + key);
+        return getString(prefixWithColon + key);
       }
 
       @Override
       public String put(String key, String value) {
         String fullKey = prefixWithColon + key;
-        String oldValue = data.get(fullKey);
+        String oldValue = getString(fullKey);
         setField(fullKey, value);
         return oldValue;
       }
@@ -109,7 +108,7 @@ public abstract class MapEntity<K extends Key> {
       public String remove(Object key) {
         if (!(key instanceof String)) return null;
         String fullKey = prefixWithColon + key;
-        String oldValue = data.get(fullKey);
+        String oldValue = getString(fullKey);
         setField(fullKey, null);
         return oldValue;
       }

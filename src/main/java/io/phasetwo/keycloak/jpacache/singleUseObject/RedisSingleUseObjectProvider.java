@@ -14,16 +14,16 @@ import redis.clients.jedis.Jedis;
 public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   private final KeycloakSession session;
   private final Jedis jedis;
-  private final RedisChangelogTransaction<SingleUseObjectKey, RedisSingleUseObjectAdapter> sloTrx;
+  private final RedisChangelogTransaction<SingleUseObjectKey, RedisSingleUseObjectAdapter> suoTrx;
 
   private static final String NULL_SENTINEL = "<null>";
 
   public RedisSingleUseObjectProvider(KeycloakSession session, Jedis jedis) {
     this.jedis = jedis;
     this.session = session;
-    this.sloTrx =
+    this.suoTrx =
         new RedisChangelogTransaction<>(jedis, new SingleUseObjectAdapterSupplier(session, jedis));
-    session.getTransactionManager().enlistAfterCompletion(sloTrx);
+    session.getTransactionManager().enlistAfterCompletion(suoTrx);
   }
 
   /** Replace null values in the input map with a sentinel string. */
@@ -55,7 +55,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
     // log.debugf("[redis] HSET %s %s", key, notes);
     // jedis.hset(key, stripNulls(notes));
-    RedisSingleUseObjectAdapter a = sloTrx.get(new SingleUseObjectKey(key));
+    RedisSingleUseObjectAdapter a = suoTrx.get(new SingleUseObjectKey(key));
     a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
     replaceNotes(a, notes);
   }
@@ -70,7 +70,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public Map<String, String> get(String key) {
-    RedisSingleUseObjectAdapter a = sloTrx.getIfPresent(new SingleUseObjectKey(key));
+    RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) {
       return null;
     } else {
@@ -80,17 +80,17 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public Map<String, String> remove(String key) {
-    RedisSingleUseObjectAdapter a = sloTrx.getIfPresent(new SingleUseObjectKey(key));
+    RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) return null;
     Map<String, String> notes = a.getNotes();
     Map<String, String> ns = notes == null ? null : convertNulls(notes);
-    sloTrx.addForDelete(a);
+    suoTrx.addForDelete(a);
     return ns;
   }
 
   @Override
   public boolean replace(String key, Map<String, String> notes) {
-    RedisSingleUseObjectAdapter a = sloTrx.getIfPresent(new SingleUseObjectKey(key));
+    RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) return false;
     replaceNotes(a, notes);
     return true;
@@ -99,11 +99,11 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   @Override
   public boolean putIfAbsent(String key, long lifespanSeconds) {
     SingleUseObjectKey k = new SingleUseObjectKey(key);
-    RedisSingleUseObjectAdapter a = sloTrx.getIfPresent(k);
+    RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(k);
     if (a != null) {
       return false;
     } else {
-      a = sloTrx.get(k);
+      a = suoTrx.get(k);
       a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
       return true;
     }
@@ -111,7 +111,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public boolean contains(String key) {
-    RedisSingleUseObjectAdapter a = sloTrx.getIfPresent(new SingleUseObjectKey(key));
+    RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     return (a != null);
   }
 

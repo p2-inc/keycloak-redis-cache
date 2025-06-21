@@ -46,7 +46,7 @@ TODO build and publish a docker image so it's easier to try.
 - We use a job to expire entries rather than using Redis native TTL. This is because we want it to work with implementations that don't support multi-region expiration (e.g. AWS MemoryDB).
 - No migration of existing sessions is done.
 - We store both normal and "offline" sessions in the cache. No database persistence is used.
-- `ClusterProvider` implementation still relies on the replicated `work` cache using Infinispan. This is used to propagate evictions to the Realm or User local caches between instances. TODO replace this with Redis `PUBSUB`, or SNS (AWS) or Pub/Sub (GCP) for multi-region. .
+- `ClusterProvider` implementation uses Redis `PUBSUB`. In the future, we need to add SNS (AWS) or Pub/Sub (GCP) for multi-region. .
 - Keycloak Authorization probably won't work (Keycloak tries to use `InfinispanStoreFactory` direclty in a lot of places).
 - Some tests are still skipped or failing. We need to understand if this is because the test fails to do everything in a single transaction (Keycloak doesn't do this internally) or if there is something we are missing.
 - Hasn't been benchmarked to look for issues under load.
