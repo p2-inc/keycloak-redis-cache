@@ -97,11 +97,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public int getStarted() {
-    return getInt("started", 0);
-  }
-
-  public void setStarted(int started) {
-    setField("started", started);
+    return getTimestamp();
   }
 
   @Override

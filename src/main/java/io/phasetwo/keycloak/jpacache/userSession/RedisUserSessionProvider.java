@@ -729,7 +729,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     entity.setBrokerSessionId(brokerSessionId);
     entity.setBrokerUserId(brokerUserId);
     entity.setOffline(offline);
-    // entity.setTimestamp(timestamp); TODO
+    entity.setTimestamp(timestamp);
     entity.setLastSessionRefresh(timestamp);
     return entity;
   }
