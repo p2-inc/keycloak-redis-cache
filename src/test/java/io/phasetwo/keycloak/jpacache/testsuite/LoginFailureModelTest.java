@@ -23,21 +23,25 @@ import static org.junit.Assert.assertNull;
 import org.junit.Test;
 import org.keycloak.models.*;
 
+import java.util.stream.IntStream;
+
 public class LoginFailureModelTest extends KeycloakModelTest {
 
   private String realmId;
 
   @Override
   public void createEnvironment(KeycloakSession s) {
-    RealmModel realm = s.realms().createRealm("realm");
-    realm.setDefaultRole(
-        s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
-    realmId = realm.getId();
+      RealmModel realm = createRealm(s, "realm");
+      s.getContext().setRealm(realm);
+      realm.setDefaultRole(s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
+      realmId = realm.getId();
   }
 
   @Override
   public void cleanEnvironment(KeycloakSession s) {
-    s.realms().removeRealm(realmId);
+      RealmModel realm = s.realms().getRealm(realmId);
+      s.getContext().setRealm(realm);
+      s.realms().removeRealm(realmId);
   }
 
   @Test
