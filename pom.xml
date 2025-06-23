@@ -157,7 +157,7 @@
           <systemPropertyVariables>
             <!-- keycloak.model.parameters lists parameter classes from
                  org.keycloak.model.parameters package and determine enabled providers -->
-            <kc.community.jpa.cache.enabled>true</kc.community.jpa.cache.enabled>
+            <kc.community.redis.cache.enabled>true</kc.community.redis.cache.enabled>
             <keycloak.model.parameters>JpaCacheParameters</keycloak.model.parameters>
             <keycloak.connectionsJpa.default.driver>${keycloak.connectionsJpa.driver}</keycloak.connectionsJpa.default.driver>
             <keycloak.connectionsJpa.default.database>${keycloak.connectionsJpa.database}</keycloak.connectionsJpa.default.database>
@@ -168,6 +168,7 @@
             <keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>${keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase}</keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>
             <keycloak.profile.feature.authorization>disabled</keycloak.profile.feature.authorization>
             <keycloak.profile.feature.organization>disabled</keycloak.profile.feature.organization>
+            <keycloak.profile.feature.persistent_user_sessions>disabled</keycloak.profile.feature.persistent_user_sessions>
             <keycloak.profile.feature.admin_fine_grained_authz>disabled</keycloak.profile.feature.admin_fine_grained_authz>
             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
             <org.jboss.logging.provider>log4j</org.jboss.logging.provider>

@@ -3,6 +3,7 @@ package io.phasetwo.keycloak.jpacache.testsuite.parameters;
 import com.google.common.collect.ImmutableSet;
 import io.phasetwo.keycloak.compatibility.MapPublicKeyStorageProviderFactory;
 import io.phasetwo.keycloak.jpacache.RedisDatastoreProviderFactory;
+import io.phasetwo.keycloak.jpacache.authSession.RedisAuthenticationSessionProviderFactory;
 import io.phasetwo.keycloak.jpacache.connection.DefaultRedisConnectionProviderFactory;
 import io.phasetwo.keycloak.jpacache.connection.RedisConnectionProviderFactory;
 import io.phasetwo.keycloak.jpacache.connection.RedisConnectionSpi;
@@ -11,6 +12,8 @@ import io.phasetwo.keycloak.jpacache.singleUseObject.RedisSingleUseObjectProvide
 import io.phasetwo.keycloak.jpacache.testsuite.Config;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelParameters;
 import java.util.Set;
+
+import io.phasetwo.keycloak.jpacache.userSession.RedisUserSessionProviderFactory;
 import org.keycloak.authorization.jpa.store.JPAAuthorizationStoreFactory;
 import org.keycloak.broker.provider.IdentityProviderFactory;
 import org.keycloak.connections.jpa.*;
@@ -115,6 +118,8 @@ public class JpaCacheParameters extends KeycloakModelParameters {
       ImmutableSet.<Class<? extends ProviderFactory>>builder()
           .add(RedisSingleUseObjectProviderFactory.class)
           .add(RedisUserLoginFailureProviderFactory.class)
+          .add(RedisUserSessionProviderFactory.class)
+          .add(RedisAuthenticationSessionProviderFactory.class)
           .add(RedisConnectionProviderFactory.class)
           .add(RedisDatastoreProviderFactory.class)
           .add(ClientDisabledClientRegistrationPolicyFactory.class)
@@ -178,6 +183,8 @@ public class JpaCacheParameters extends KeycloakModelParameters {
         .spi("clientScope")
         .defaultProvider("jpa")
         .spi("group")
+        .defaultProvider("jpa")
+        .spi("idp")
         .defaultProvider("jpa")
         .spi("role")
         .defaultProvider("jpa")
