@@ -204,6 +204,29 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+	<version>3.4.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+	<configuration>
+          <artifactSet>
+            <includes>
+              <include>${project.groupId}:${project.artifactId}</include>
+              <include>redis.clients:jedis</include>
+              <include>org.apache.commons:commons-pool2</include>
+            </includes>
+          </artifactSet>
+          <finalName>${project.artifactId}-${project.version}-withdeps</finalName>
+	</configuration>
+      </plugin>
     </plugins>      
   </build>
 
@@ -268,6 +291,8 @@
       <artifactId>keycloak-core</artifactId>
       <version>${keycloak.version}</version>
     </dependency>
+
+    <!-- redis dependencies -->
     <dependency>
       <groupId>redis.clients</groupId>
       <artifactId>jedis</artifactId>
@@ -290,6 +315,7 @@
       <groupId>io.smallrye</groupId>
       <artifactId>jandex</artifactId>
       <version>${smallrye.jandex.version}</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- testing -->

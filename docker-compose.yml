@@ -10,9 +10,7 @@ services:
     image: quay.io/keycloak/keycloak:26.2.5
     volumes:
       - h2_data:/opt/keycloak/data
-      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT.jar
-      - ${PWD}/external-lib/jedis-6.0.0.jar:/opt/keycloak/providers/jedis.jar  # should create a fat jar containing it...somehow
-      - ${PWD}/external-lib/commons-pool2-2.12.1.jar:/opt/keycloak/providers/commons-pool2.jar
+      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
     environment:
       KC_DB_USERNAME: "sa"
       KC_COMMUNITY_REDIS_CACHE_ENABLED: true
