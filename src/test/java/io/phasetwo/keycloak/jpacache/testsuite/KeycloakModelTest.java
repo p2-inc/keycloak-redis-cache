@@ -580,7 +580,6 @@ public abstract class KeycloakModelTest {
     KeycloakModelUtils.runJobInTransaction(getFactory(), this::cleanEnvironment);
   }
 
-
   protected <T> Stream<T> getParameters(Class<T> clazz) {
     return MODEL_PARAMETERS.stream()
         .flatMap(mp -> mp.getParameters(clazz))
@@ -660,15 +659,15 @@ public abstract class KeycloakModelTest {
   }
 
   protected static RealmModel createRealm(KeycloakSession s, String name) {
-      RealmModel realm = s.realms().getRealmByName(name);
-      if (realm != null) {
-          RealmModel current = s.getContext().getRealm();
-          s.getContext().setRealm(realm);
-          // The previous test didn't clean up the realm for some reason, cleanup now
-          s.realms().removeRealm(realm.getId());
-          s.getContext().setRealm(current);
-      }
-      realm = s.realms().createRealm(name);
-      return realm;
+    RealmModel realm = s.realms().getRealmByName(name);
+    if (realm != null) {
+      RealmModel current = s.getContext().getRealm();
+      s.getContext().setRealm(realm);
+      // The previous test didn't clean up the realm for some reason, cleanup now
+      s.realms().removeRealm(realm.getId());
+      s.getContext().setRealm(current);
+    }
+    realm = s.realms().createRealm(name);
+    return realm;
   }
 }

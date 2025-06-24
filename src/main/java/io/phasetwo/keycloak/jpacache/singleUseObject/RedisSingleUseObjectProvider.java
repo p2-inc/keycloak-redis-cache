@@ -74,7 +74,8 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     if (a == null) {
       return null;
     } else {
-      return convertNulls(a.getNotes());
+      // return convertNulls(a.getNotes());
+      return a.getNotes();
     }
   }
 
@@ -82,10 +83,11 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   public Map<String, String> remove(String key) {
     RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) return null;
-    Map<String, String> notes = a.getNotes();
-    Map<String, String> ns = notes == null ? null : convertNulls(notes);
+    Map<String, String> notes = Maps.newHashMap(a.getNotes()); // TODO need to clone?
+    //    Map<String, String> ns = notes == null ? null : convertNulls(notes);
     suoTrx.addForDelete(a);
-    return ns;
+    // return ns;
+    return notes;
   }
 
   @Override

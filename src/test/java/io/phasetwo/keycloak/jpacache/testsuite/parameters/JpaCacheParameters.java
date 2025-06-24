@@ -11,9 +11,8 @@ import io.phasetwo.keycloak.jpacache.loginFailure.RedisUserLoginFailureProviderF
 import io.phasetwo.keycloak.jpacache.singleUseObject.RedisSingleUseObjectProviderFactory;
 import io.phasetwo.keycloak.jpacache.testsuite.Config;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelParameters;
-import java.util.Set;
-
 import io.phasetwo.keycloak.jpacache.userSession.RedisUserSessionProviderFactory;
+import java.util.Set;
 import org.keycloak.authorization.jpa.store.JPAAuthorizationStoreFactory;
 import org.keycloak.broker.provider.IdentityProviderFactory;
 import org.keycloak.connections.jpa.*;

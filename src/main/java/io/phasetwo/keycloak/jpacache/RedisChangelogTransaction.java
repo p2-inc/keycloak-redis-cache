@@ -2,16 +2,19 @@ package io.phasetwo.keycloak.jpacache;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import io.phasetwo.keycloak.common.ExpirableEntity;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
+import org.keycloak.common.util.Time;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.Transaction;
+import redis.clients.jedis.params.HSetExParams;
 
 @JBossLog
 public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
@@ -52,11 +55,25 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     if (data != null && !data.isEmpty()) {
       log.debugf("found data for %s %s", key, data);
       model = adapterSupplier.newInstance(k, data);
-      cache.put(k, model);
-      return model;
-    } else {
-      return null;
+      if (!expired(k, model)) {
+        cache.put(k, model);
+        return model;
+      }
     }
+    return null;
+  }
+
+  /** Lazy removal. Check to see if an entity is expired. return true if it was. add it toDelete. */
+  private boolean expired(K k, A a) {
+    if (k instanceof ExpirableEntity) {
+      ExpirableEntity e = (ExpirableEntity) a;
+      if (e.getExpiration() != null && (e.getExpiration() < Time.currentTimeMillis())) {
+        log.debugf("Entity at %s expired at %d. Lazy removing.", k, e.getExpiration());
+        addForDelete(a);
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -149,8 +166,17 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         } else if (model.isDirty()) {
           Map<String, String> updates = model.getDirtyFields();
           // hset the new/changed values
-          log.debugf("[redis] HSET %s %s", key, updates);
-          txn.hset(key, updates);
+          if (model instanceof ExpirableEntity) {
+            ExpirableEntity e = (ExpirableEntity) model;
+            log.debugf("[redis] (exp:%d) HSET %s %s", e.getExpiration(), key, updates);
+            txn.hsetex(
+                key,
+                HSetExParams.hSetExParams().pxAt(e.getExpiration()),
+                updates); // todo need to check for expiration null
+          } else {
+            log.debugf("[redis] HSET %s %s", key, updates);
+            txn.hset(key, updates);
+          }
           // sadd the secondary indexes
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
             log.debugf("[redis] SADD %s %s", index.getKey(), index.getValue());
