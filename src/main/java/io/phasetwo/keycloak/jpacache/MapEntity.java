@@ -33,12 +33,13 @@ public abstract class MapEntity<K extends Key> {
   }
 
   protected void removeField(String key) {
+    log.tracef("removeField %s", key);
     data.remove(key);
     deletedFields.add(key);
   }
 
   protected void setField(String key, Object value) {
-    log.debugf("setField %s %s", key, value);
+    log.tracef("setField %s %s", key, value);
     String strVal = value == null ? NULL_SENTINEL : String.valueOf(value);
     String current = data.get(key);
     if (!Objects.equals(current, strVal)) {
@@ -46,7 +47,7 @@ public abstract class MapEntity<K extends Key> {
       dirtyFields.add(key);
       deletedFields.remove(key);
     } else {
-      log.debugf("field isn't different. skipping. %s %s", key, value);
+      log.tracef("field isn't different. skipping. %s %s", key, value);
     }
   }
 
@@ -128,7 +129,7 @@ public abstract class MapEntity<K extends Key> {
           }
         }
         for (String k : keysToRemove) {
-          setField(k, null);
+          removeField(k);
         }
       }
 

@@ -4,6 +4,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -48,12 +49,12 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     if (k == null) return null;
     if (toDelete.contains(k)) return null;
     A model = cache.get(k);
-    if (model != null) return model;
+    if (model != null && !expired(k, model)) return model;
     String key = k.key();
-    log.debugf("[redis] HGETALL %s", key);
+    log.tracef("[redis] HGETALL %s", key);
     Map<String, String> data = jedis.hgetAll(key);
     if (data != null && !data.isEmpty()) {
-      log.debugf("found data for %s %s", key, data);
+      log.tracef("found data for %s %s", key, data);
       model = adapterSupplier.newInstance(k, data);
       if (!expired(k, model)) {
         cache.put(k, model);
@@ -65,15 +66,18 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
   /** Lazy removal. Check to see if an entity is expired. return true if it was. add it toDelete. */
   private boolean expired(K k, A a) {
-    if (k instanceof ExpirableEntity) {
+    if (a instanceof ExpirableEntity) {
       ExpirableEntity e = (ExpirableEntity) a;
-      // if (e.getExpiration() != null && (e.getExpiration() < Time.currentTimeMillis())) {
       if (ExpirationUtils.isExpired(e, true)) {
-        log.debugf("Entity at %s expired at %s. Lazy removing.", k, ExpirationUtils.fromNow(e));
+        log.tracef("Entity at %s expired %s. Lazy removing.", k, ExpirationUtils.fromNow(e));
         addForDelete(a);
         return true;
+      } else {
+        log.tracef("Entity at %s active. Expires in %s.", k, ExpirationUtils.fromNow(e));
+        return false;
       }
     }
+    log.tracef("Entity at %s is not an expirable entity.", k);
     return false;
   }
 
@@ -94,7 +98,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       if (model != null) {
         result.put(key, model);
       } else {
-        log.debugf("[redis] HGETALL %s", key.key());
+        log.tracef("[redis] HGETALL %s", key.key());
         responses.put(key, pipeline.hgetAll(key.key()));
       }
     }
@@ -124,6 +128,12 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     toDelete.add(model);
   }
 
+  public void cachedToDelete() {
+    for (A model : cache.values()) {
+      addForDelete(model);
+    }
+  }
+
   @Override
   protected void commitImpl() {
     Set<String> keysToWatch = Sets.newHashSet();
@@ -131,82 +141,84 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     // Keys to watch: all affected session keys + index
     for (A model : cache.values()) {
       if (!toDelete.contains(model.getKey())) {
-        log.debugf("adding key to WATCH %s", model.getKey().key());
+        log.tracef("adding key to WATCH %s", model.getKey().key());
         keysToWatch.add(model.getKey().key());
       }
     }
     for (A model : toDelete) {
-      log.debugf("adding key to WATCH %s", model.getKey().key());
+      log.tracef("adding key to WATCH %s", model.getKey().key());
       keysToWatch.add(model.getKey().key());
     }
 
     try {
       String[] kw = keysToWatch.toArray(new String[0]);
       if (kw == null || kw.length == 0) {
-        log.debug("nothing to WATCH. skipping transaction...");
+        log.trace("nothing to WATCH. skipping transaction...");
         return; // nothing to do?
       } else {
-        log.debugf("[redis] WATCH %s", kw);
+        log.tracef("[redis] WATCH %s", kw);
         jedis.watch(kw);
       }
 
       // Jedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not need a
       // separate Pipeline to reduce round trips inside a MULTI.
-      log.debugf("[redis] MULTI");
+      log.tracef("[redis] MULTI");
       Transaction txn = jedis.multi();
 
       for (A model : cache.values()) {
         String key = model.getKey().key();
 
         if (model.isMarkedForDelete() || toDelete.contains(model.getKey())) {
-          log.debugf("[redis] DEL %s", key);
+          log.tracef("[redis] DEL %s", key);
           txn.del(key);
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-            log.debugf("[redis] SREM %s %s", index.getKey(), index.getValue());
+            log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
             txn.srem(index.getKey(), index.getValue());
             toDelete.remove(model.getKey());
           }
         } else if (model.isDirty()) {
           Map<String, String> updates = model.getDirtyFields();
-          // hset the new/changed values
-          if (model instanceof ExpirableEntity) {
-            ExpirableEntity e = (ExpirableEntity) model;
-            log.debugf("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key, updates);
-            txn.hsetex(
-                key,
-                HSetExParams.hSetExParams().pxAt(e.getExpiration()),
-                updates); // todo need to check for expiration null
-          } else {
-            log.debugf("[redis] HSET %s %s", key, updates);
-            txn.hset(key, updates);
+          if (!updates.isEmpty()) {
+            // hset the new/changed values
+            if (model instanceof ExpirableEntity) {
+              ExpirableEntity e = (ExpirableEntity) model;
+              log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key, updates);
+              txn.hsetex(
+                  key,
+                  HSetExParams.hSetExParams().pxAt(e.getExpiration()),
+                  updates); // todo need to check for expiration null
+            } else {
+              log.tracef("[redis] HSET %s %s", key, updates);
+              txn.hset(key, updates);
+            }
           }
           // sadd the secondary indexes
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-            log.debugf("[redis] SADD %s %s", index.getKey(), index.getValue());
+            log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
             txn.sadd(index.getKey(), index.getValue());
           }
           // hdel the values that were unset
           Set<String> deletedFields = model.getDeletedFields();
           String[] del = deletedFields.toArray(new String[0]);
           if (del != null && del.length > 0) {
-            log.debugf("[redis] HDEL %s %s", key, del);
+            log.tracef("[redis] HDEL %s %s", key, Arrays.toString(del));
             txn.hdel(key, del);
           }
         }
       }
       // will this ever run?
-      log.debugf("toDelete still has %d entries", toDelete.size());
+      log.tracef("toDelete still has %d entries", toDelete.size());
       for (A model : toDelete) {
         String key = model.getKey().key();
-        log.debugf("[redis] DEL %s", key);
+        log.tracef("[redis] DEL %s", key);
         txn.del(key);
         for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-          log.debugf("[redis] SREM %s %s", index.getKey(), index.getValue());
+          log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
           txn.srem(index.getKey(), index.getValue());
         }
       }
 
-      log.debugf("[redis] EXEC");
+      log.tracef("[redis] EXEC");
       List<Object> results = txn.exec();
       if (results == null) {
         throw new IllegalStateException("Redis transaction aborted due to concurrent modification");

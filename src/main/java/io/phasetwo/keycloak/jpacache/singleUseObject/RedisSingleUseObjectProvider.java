@@ -3,7 +3,6 @@ package io.phasetwo.keycloak.jpacache.singleUseObject;
 import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
-import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
@@ -16,8 +15,6 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   private final Jedis jedis;
   private final RedisChangelogTransaction<SingleUseObjectKey, RedisSingleUseObjectAdapter> suoTrx;
 
-  private static final String NULL_SENTINEL = "<null>";
-
   public RedisSingleUseObjectProvider(KeycloakSession session, Jedis jedis) {
     this.jedis = jedis;
     this.session = session;
@@ -26,46 +23,16 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     session.getTransactionManager().enlistAfterCompletion(suoTrx);
   }
 
-  /** Replace null values in the input map with a sentinel string. */
-  public static Map<String, String> stripNulls(Map<String, String> input) {
-    if (input == null || input.isEmpty()) return input;
-    return input.entrySet().stream()
-        .collect(
-            Collectors.toMap(
-                Map.Entry::getKey, e -> e.getValue() == null ? NULL_SENTINEL : e.getValue()));
-  }
-
-  /** Replace sentinel values in the map with actual nulls. */
-  public static Map<String, String> convertNulls(Map<String, String> input) {
-    if (input == null || input.isEmpty()) return input;
-    Map<String, String> output = Maps.newHashMap();
-    for (Map.Entry<String, String> entry : input.entrySet()) {
-      if (entry.getValue() == null) {
-        output.put(entry.getKey(), null); // null is allowed here
-      } else if ("<null>".equals(entry.getValue())) {
-        output.put(entry.getKey(), null);
-      } else {
-        output.put(entry.getKey(), entry.getValue());
-      }
-    }
-    return output;
-  }
-
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
-    // log.debugf("[redis] HSET %s %s", key, notes);
-    // jedis.hset(key, stripNulls(notes));
     RedisSingleUseObjectAdapter a = suoTrx.get(new SingleUseObjectKey(key));
     a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
     replaceNotes(a, notes);
   }
 
   private void replaceNotes(RedisSingleUseObjectAdapter adapter, Map<String, String> notes) {
-    Map<String, String> ns = adapter.getNotes();
-    ns.clear();
-    for (Map.Entry<String, String> note : notes.entrySet()) {
-      ns.put(note.getKey(), note.getValue() == null ? NULL_SENTINEL : note.getValue());
-    }
+    log.debugf("replacing notes for %s with %s", adapter.getName(), notes);
+    adapter.replaceNotes(notes);
   }
 
   @Override
@@ -74,7 +41,6 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     if (a == null) {
       return null;
     } else {
-      // return convertNulls(a.getNotes());
       return a.getNotes();
     }
   }
@@ -84,9 +50,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) return null;
     Map<String, String> notes = Maps.newHashMap(a.getNotes()); // TODO need to clone?
-    //    Map<String, String> ns = notes == null ? null : convertNulls(notes);
     suoTrx.addForDelete(a);
-    // return ns;
     return notes;
   }
 

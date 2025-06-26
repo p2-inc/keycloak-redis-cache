@@ -47,12 +47,14 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
   @Override
   public void removeAllUserLoginFailures(RealmModel realm) {
     String indexKey = "login-failure:index:" + realm.getId();
-    log.debugf("[redis] SMEMBERS %s", indexKey);
+    log.tracef("[redis] SMEMBERS %s", indexKey);
     Set<String> userIds = jedis.smembers(indexKey);
+    log.tracef("found %d login failures for realm %s", userIds.size(), realm.getId());
     for (String userId : userIds) {
-      // TODO this is way too inefficient. need to revisit
+      log.tracef("removing login failure for realm %s user %s", realm.getId(), userId);
       removeUserLoginFailure(realm, userId);
     }
+    loginFailureTrx.cachedToDelete(); // todo do this somehow per realm?
   }
 
   @Override
