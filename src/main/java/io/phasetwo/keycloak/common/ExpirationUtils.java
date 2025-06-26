@@ -16,6 +16,8 @@
 
 package io.phasetwo.keycloak.common;
 
+import java.time.Duration;
+import java.time.Instant;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 
@@ -45,5 +47,40 @@ public class ExpirationUtils {
 
   public static boolean isNotExpired(Object entity) {
     return !isExpired((ExpirableEntity) entity, true);
+  }
+
+  public static String fromNow(ExpirableEntity entity) {
+    if (entity == null || entity.getExpiration() == null) return "never";
+    else return fromNow(entity.getExpiration());
+  }
+
+  public static String fromNow(long timestampMillis) {
+    Instant now = Instant.now();
+    Instant then = Instant.ofEpochMilli(timestampMillis);
+    Duration duration = Duration.between(now, then);
+
+    long millis = duration.toMillis();
+    boolean future = millis > 0;
+    long absMillis = Math.abs(millis);
+
+    long days = absMillis / (1000 * 60 * 60 * 24);
+    long hours = (absMillis / (1000 * 60 * 60)) % 24;
+    long minutes = (absMillis / (1000 * 60)) % 60;
+    long seconds = (absMillis / 1000) % 60;
+
+    StringBuilder timePart = new StringBuilder();
+    if (days > 0) timePart.append(days).append(" day").append(days > 1 ? "s" : "");
+    else if (hours > 0) timePart.append(hours).append(" hour").append(hours > 1 ? "s" : "");
+    else if (minutes > 0) timePart.append(minutes).append(" minute").append(minutes > 1 ? "s" : "");
+    else if (seconds > 0) timePart.append(seconds).append(" second").append(seconds > 1 ? "s" : "");
+    else timePart.append("just now");
+
+    if (!timePart.toString().equals("just now")) {
+      timePart.insert(0, future ? "in " : "").append(future ? "" : " ago");
+    }
+
+    timePart.append(" (").append(millis).append(" ms)");
+
+    return timePart.toString();
   }
 }

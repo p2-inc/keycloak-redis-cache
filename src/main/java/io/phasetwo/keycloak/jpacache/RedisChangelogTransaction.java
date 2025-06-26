@@ -3,12 +3,12 @@ package io.phasetwo.keycloak.jpacache;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.common.ExpirableEntity;
+import io.phasetwo.keycloak.common.ExpirationUtils;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
-import org.keycloak.common.util.Time;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
@@ -67,8 +67,9 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   private boolean expired(K k, A a) {
     if (k instanceof ExpirableEntity) {
       ExpirableEntity e = (ExpirableEntity) a;
-      if (e.getExpiration() != null && (e.getExpiration() < Time.currentTimeMillis())) {
-        log.debugf("Entity at %s expired at %d. Lazy removing.", k, e.getExpiration());
+      // if (e.getExpiration() != null && (e.getExpiration() < Time.currentTimeMillis())) {
+      if (ExpirationUtils.isExpired(e, true)) {
+        log.debugf("Entity at %s expired at %s. Lazy removing.", k, ExpirationUtils.fromNow(e));
         addForDelete(a);
         return true;
       }
@@ -105,8 +106,10 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         Map<String, String> data = entry.getValue().get();
         if (data != null && !data.isEmpty()) {
           A model = adapterSupplier.newInstance(key, data);
-          result.put(key, model);
-          cache.put(key, model);
+          if (!expired(key, model)) {
+            result.put(key, model);
+            cache.put(key, model);
+          }
         }
       }
     }
@@ -168,7 +171,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
           // hset the new/changed values
           if (model instanceof ExpirableEntity) {
             ExpirableEntity e = (ExpirableEntity) model;
-            log.debugf("[redis] (exp:%d) HSET %s %s", e.getExpiration(), key, updates);
+            log.debugf("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key, updates);
             txn.hsetex(
                 key,
                 HSetExParams.hSetExParams().pxAt(e.getExpiration()),
