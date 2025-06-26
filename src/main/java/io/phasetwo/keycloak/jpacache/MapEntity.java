@@ -264,4 +264,23 @@ public abstract class MapEntity<K extends Key> {
   public String toString() {
     return data.toString();
   }
+
+  protected Map<String, String> getFieldSnapshot() {
+    return Map.copyOf(data);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+
+    MapEntity<?> that = (MapEntity<?>) o;
+    return Objects.equals(key, that.key)
+        && Objects.equals(getFieldSnapshot(), that.getFieldSnapshot());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(key, getFieldSnapshot());
+  }
 }

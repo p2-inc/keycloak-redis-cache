@@ -62,9 +62,10 @@ public class RedisUserLoginFailureAdapter extends MapEntity<LoginFailureKey>
 
   @Override
   public void clearFailures() {
-    setField("numFailures", 0);
+    removeField("numFailures");
     removeField("lastFailure");
     removeField("lastIPFailure");
+    removeField("failedLoginNotBefore");
   }
 
   @Override
