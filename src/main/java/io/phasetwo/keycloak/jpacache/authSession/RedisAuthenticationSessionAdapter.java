@@ -63,6 +63,14 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     this.parent = parent;
   }
 
+  public void setTimestamp(int timestamp) {
+    setField("timestamp", timestamp);
+  }
+
+  public int getTimestamp() {
+    return getInt("timestamp", 0);
+  }
+
   @Override
   public RealmModel getRealm() {
     return session.realms().getRealm(getString("realmId"));

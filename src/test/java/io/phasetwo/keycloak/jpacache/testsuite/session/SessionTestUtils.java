@@ -50,29 +50,31 @@ public class SessionTestUtils {
   public static UserSessionModel[] createSessions(KeycloakSession session, String realmId) {
     RealmModel realm = session.realms().getRealm(realmId);
     UserSessionModel[] sessions = new UserSessionModel[3];
-    //from original KC
-    KeycloakModelUtils.runJobInTransaction(session.getKeycloakSessionFactory(), (KeycloakSession kcSession) -> {
-      sessions[0] =
+    // from original KC
+    KeycloakModelUtils.runJobInTransaction(
+        session.getKeycloakSessionFactory(),
+        (KeycloakSession kcSession) -> {
+          sessions[0] =
               kcSession
-                      .sessions()
-                      .createUserSession(
-                              realm,
-                              kcSession.users().getUserByUsername(realm, "user1"),
-                              "user1",
-                              "127.0.0.1",
-                              "form",
-                              true,
-                              null,
-                              null);
+                  .sessions()
+                  .createUserSession(
+                      realm,
+                      kcSession.users().getUserByUsername(realm, "user1"),
+                      "user1",
+                      "127.0.0.1",
+                      "form",
+                      true,
+                      null,
+                      null);
 
-      createClientSession(
+          createClientSession(
               kcSession,
               realmId,
               realm.getClientByClientId("test-app"),
               sessions[0],
               "http://redirect",
               "state");
-      createClientSession(
+          createClientSession(
               kcSession,
               realmId,
               realm.getClientByClientId("third-party"),
@@ -80,19 +82,19 @@ public class SessionTestUtils {
               "http://redirect",
               "state");
 
-      sessions[1] =
+          sessions[1] =
               kcSession
-                      .sessions()
-                      .createUserSession(
-                              realm,
-                              kcSession.users().getUserByUsername(realm, "user1"),
-                              "user1",
-                              "127.0.0.2",
-                              "form",
-                              true,
-                              null,
-                              null);
-      createClientSession(
+                  .sessions()
+                  .createUserSession(
+                      realm,
+                      kcSession.users().getUserByUsername(realm, "user1"),
+                      "user1",
+                      "127.0.0.2",
+                      "form",
+                      true,
+                      null,
+                      null);
+          createClientSession(
               kcSession,
               realmId,
               realm.getClientByClientId("test-app"),
@@ -100,26 +102,26 @@ public class SessionTestUtils {
               "http://redirect",
               "state");
 
-      sessions[2] =
+          sessions[2] =
               kcSession
-                      .sessions()
-                      .createUserSession(
-                              realm,
-                              kcSession.users().getUserByUsername(realm, "user2"),
-                              "user2",
-                              "127.0.0.3",
-                              "form",
-                              true,
-                              null,
-                              null);
-      createClientSession(
+                  .sessions()
+                  .createUserSession(
+                      realm,
+                      kcSession.users().getUserByUsername(realm, "user2"),
+                      "user2",
+                      "127.0.0.3",
+                      "form",
+                      true,
+                      null,
+                      null);
+          createClientSession(
               kcSession,
               realmId,
               realm.getClientByClientId("test-app"),
               sessions[2],
               "http://redirect",
               "state");
-    });
+        });
     return sessions;
   }
 

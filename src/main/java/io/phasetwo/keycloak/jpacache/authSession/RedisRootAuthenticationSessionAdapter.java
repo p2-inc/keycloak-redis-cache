@@ -5,13 +5,15 @@ import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.common.ExpirableEntity;
+import io.phasetwo.keycloak.common.TimeAdapter;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.Comparator;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
@@ -145,43 +147,46 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     return authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
   }
 
-  // private static final Comparator<RedisAuthenticationSessionAdapter> TIMESTAMP_COMPARATOR =
-  //     Comparator.comparingLong(RedisAuthenticationSession::getTimestamp);
+  private static final Comparator<RedisAuthenticationSessionAdapter> TIMESTAMP_COMPARATOR =
+      Comparator.comparingLong(RedisAuthenticationSessionAdapter::getTimestamp);
 
   @Override
   public AuthenticationSessionModel createAuthenticationSession(ClientModel client) {
     Objects.requireNonNull(client, "The provided client can't be null!");
 
-    /*
+    int timestamp = Time.currentTime();
+    int authSessionLifespanSeconds = getAuthSessionLifespan(client.getRealm());
+
     Map<String, AuthenticationSessionModel> authSessions = getAuthenticationSessions();
     if (authSessions != null && authSessions.size() >= authSessionsLimit) {
-      Optional<AuthenticationSession> oldest =
-          authSessions.values().stream().map(a -> (RedisAuthenticationSessionAdapter)a).min(TIMESTAMP_COMPARATOR);
-      String tabId = oldest.map(AuthenticationSession::getTabId).orElse(null);
+      Optional<RedisAuthenticationSessionAdapter> oldest =
+          authSessions.values().stream()
+              .map(a -> (RedisAuthenticationSessionAdapter) a)
+              .min(TIMESTAMP_COMPARATOR);
+      String tabId = oldest.map(RedisAuthenticationSessionAdapter::getTabId).orElse(null);
 
       if (tabId != null && !oldest.isEmpty()) {
-        log.debugf("Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with TabId %s.", authSessionsLimit, tabId);
+        log.debugf(
+            "Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with TabId %s.",
+            authSessionsLimit, tabId);
 
         // remove the oldest authentication session
         authSessionTrx.addForDelete(oldest.get());
-        authSessions.remove(
-            }
-        }
-    */
-
-    int timestamp = Time.currentTime();
-    int authSessionLifespanSeconds = getAuthSessionLifespan(client.getRealm());
+        authSessions.remove(tabId);
+      }
+    }
 
     String tabId = generateTabId();
     RedisAuthenticationSessionAdapter adapter =
         new RedisAuthenticationSessionAdapter(session, client.getId(), tabId);
     adapter.setClientUuid(client.getId());
     adapter.setParentSession(this);
+    adapter.setTimestamp(timestamp);
     authSessionTrx.addForSave(adapter);
     log.tracef("created authSession %s", adapter);
 
     setTimestamp(timestamp);
-    long exp = (timestamp + authSessionLifespanSeconds) * 1000L;
+    long exp = TimeAdapter.fromSecondsToMilliseconds(timestamp + authSessionLifespanSeconds);
     setExpiration(exp);
 
     getAuthenticationSessions().put(tabId, adapter);

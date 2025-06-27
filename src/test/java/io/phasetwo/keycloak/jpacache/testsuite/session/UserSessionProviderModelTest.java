@@ -106,8 +106,14 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         session -> {
           RealmModel realm = session.realms().getRealm(realmId);
 
-            session.sessions().removeUserSession(realm, session.sessions().getUserSession(realm, origSessions[0].getId()));
-            session.sessions().removeUserSession(realm, session.sessions().getUserSession(realm, origSessions[1].getId()));
+          session
+              .sessions()
+              .removeUserSession(
+                  realm, session.sessions().getUserSession(realm, origSessions[0].getId()));
+          session
+              .sessions()
+              .removeUserSession(
+                  realm, session.sessions().getUserSession(realm, origSessions[1].getId()));
         });
 
     inComittedTransaction(
@@ -656,8 +662,14 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         (s, r) -> {
           UserSessionModel userSession = createSessions(s, r.getId())[0];
 
-
-          s.sessions().removeUserSession(r, s.sessions().getUserSession(r, userSession.getId())); ///seems the remove User session is not working. @xgp
+          s.sessions()
+              .removeUserSession(
+                  r,
+                  s.sessions()
+                      .getUserSession(
+                          r,
+                          userSession
+                              .getId())); /// seems the remove User session is not working. @xgp
 
           assertNull(s.sessions().getUserSession(r, userSession.getId()));
           return null;

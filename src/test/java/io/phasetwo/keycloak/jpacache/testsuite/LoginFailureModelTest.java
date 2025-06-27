@@ -112,7 +112,6 @@ public class LoginFailureModelTest extends KeycloakModelTest {
         withRealm(
             realmId,
             (s, realm) -> {
-
               UserLoginFailureProvider loginFailureProvider = s.loginFailures();
 
               assertNull(loginFailureProvider.getUserLoginFailure(realm, userId));
