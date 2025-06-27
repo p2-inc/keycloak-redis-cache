@@ -12,6 +12,7 @@ public class RootAuthenticationSessionAdapterSupplier
 
   private final KeycloakSession session;
   private final Jedis jedis;
+  private final int authSessionsLimit;
   private final RedisChangelogTransaction<
           AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
       authSessionTrx;
@@ -19,23 +20,25 @@ public class RootAuthenticationSessionAdapterSupplier
   public RootAuthenticationSessionAdapterSupplier(
       KeycloakSession session,
       Jedis jedis,
+      int authSessionsLimit,
       RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
           authSessionTrx) {
     this.session = session;
     this.jedis = jedis;
+    this.authSessionsLimit = authSessionsLimit;
     this.authSessionTrx = authSessionTrx;
   }
 
   @Override
   public RedisRootAuthenticationSessionAdapter newInstance(RootAuthenticationSessionKey key) {
     return new RedisRootAuthenticationSessionAdapter(
-        session, jedis, authSessionTrx, key.realmId(), key.id());
+        session, jedis, authSessionsLimit, authSessionTrx, key.realmId(), key.id());
   }
 
   @Override
   public RedisRootAuthenticationSessionAdapter newInstance(
       RootAuthenticationSessionKey key, Map<String, String> data) {
     return new RedisRootAuthenticationSessionAdapter(
-        session, jedis, authSessionTrx, key.realmId(), key.id(), data);
+        session, jedis, authSessionsLimit, authSessionTrx, key.realmId(), key.id(), data);
   }
 }

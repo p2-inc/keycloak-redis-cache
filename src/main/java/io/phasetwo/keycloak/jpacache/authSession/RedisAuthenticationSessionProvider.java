@@ -43,7 +43,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     this.rootSessionTrx =
         new RedisChangelogTransaction<>(
             jedis,
-            new RootAuthenticationSessionAdapterSupplier(session, jedis, this.authSessionTrx));
+            new RootAuthenticationSessionAdapterSupplier(session, jedis, this.authSessionsLimit, this.authSessionTrx));
     session.getTransactionManager().enlistAfterCompletion(this.authSessionTrx);
     session.getTransactionManager().enlistAfterCompletion(this.rootSessionTrx);
   }
@@ -66,6 +66,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
         new RedisRootAuthenticationSessionAdapter(
             session,
             jedis,
+            authSessionsLimit,
             authSessionTrx,
             realm.getId(),
             id == null ? KeycloakModelUtils.generateId() : id);
@@ -85,7 +86,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     if (authenticationSessionId == null) {
       return null;
     }
-    return rootSessionTrx.get(
+    return rootSessionTrx.getIfPresent(
         new RootAuthenticationSessionKey(realm.getId(), authenticationSessionId));
   }
 

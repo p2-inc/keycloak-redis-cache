@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
@@ -29,6 +30,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   private final KeycloakSession session;
   private final Jedis jedis;
+  private final int authSessionsLimit;
   private final RedisChangelogTransaction<
           AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
       authSessionTrx;
@@ -39,16 +41,18 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   public RedisRootAuthenticationSessionAdapter(
       KeycloakSession session,
       Jedis jedis,
+      int authSessionsLimit,
       RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
           authSessionTrx,
       String realmId,
       String id) {
-    this(session, jedis, authSessionTrx, realmId, id, null);
+    this(session, jedis, authSessionsLimit, authSessionTrx, realmId, id, null);
   }
 
   public RedisRootAuthenticationSessionAdapter(
       KeycloakSession session,
       Jedis jedis,
+      int authSessionsLimit,
       RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
           authSessionTrx,
       String realmId,
@@ -57,6 +61,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     super(new RootAuthenticationSessionKey(realmId, id), existingData);
     this.session = session;
     this.jedis = jedis;
+    this.authSessionsLimit = authSessionsLimit;
     this.authSessionTrx = authSessionTrx;
     setField("id", id);
     setField("realmId", realmId);
@@ -140,9 +145,29 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     return authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
   }
 
+  // private static final Comparator<RedisAuthenticationSessionAdapter> TIMESTAMP_COMPARATOR =
+  //     Comparator.comparingLong(RedisAuthenticationSession::getTimestamp);
+
   @Override
   public AuthenticationSessionModel createAuthenticationSession(ClientModel client) {
     Objects.requireNonNull(client, "The provided client can't be null!");
+
+    /*
+    Map<String, AuthenticationSessionModel> authSessions = getAuthenticationSessions();
+    if (authSessions != null && authSessions.size() >= authSessionsLimit) {
+      Optional<AuthenticationSession> oldest =
+          authSessions.values().stream().map(a -> (RedisAuthenticationSessionAdapter)a).min(TIMESTAMP_COMPARATOR);
+      String tabId = oldest.map(AuthenticationSession::getTabId).orElse(null);
+
+      if (tabId != null && !oldest.isEmpty()) {
+        log.debugf("Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with TabId %s.", authSessionsLimit, tabId);
+
+        // remove the oldest authentication session
+        authSessionTrx.addForDelete(oldest.get());
+        authSessions.remove(
+            }
+        }
+    */
 
     int timestamp = Time.currentTime();
     int authSessionLifespanSeconds = getAuthSessionLifespan(client.getRealm());

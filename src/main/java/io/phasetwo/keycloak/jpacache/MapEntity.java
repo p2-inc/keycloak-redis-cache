@@ -110,7 +110,7 @@ public abstract class MapEntity<K extends Key> {
         if (!(key instanceof String)) return null;
         String fullKey = prefixWithColon + key;
         String oldValue = getString(fullKey);
-        setField(fullKey, null);
+        removeField(fullKey);
         return oldValue;
       }
 
@@ -179,7 +179,7 @@ public abstract class MapEntity<K extends Key> {
         if (!(o instanceof String)) return false;
         String fullKey = toKey((String) o);
         if (!data.containsKey(fullKey)) return false;
-        setField(fullKey, null);
+        removeField(fullKey);
         return true;
       }
 
@@ -209,7 +209,7 @@ public abstract class MapEntity<K extends Key> {
           @Override
           public void remove() {
             if (current != null) {
-              setField(toKey(current), null);
+              removeField(toKey(current));
             }
           }
         };
@@ -224,7 +224,7 @@ public abstract class MapEntity<K extends Key> {
       public void clear() {
         Set<String> keysToRemove = computeSet();
         for (String val : keysToRemove) {
-          setField(toKey(val), null);
+          removeField(toKey(val));
         }
       }
     };

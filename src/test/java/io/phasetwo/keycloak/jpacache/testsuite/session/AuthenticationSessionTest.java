@@ -38,7 +38,9 @@ import org.keycloak.models.*;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.CommonClientSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
+import lombok.extern.jbosslog.JBossLog;
 
+@JBossLog
 public class AuthenticationSessionTest extends KeycloakModelTest {
 
   private String realmId;
