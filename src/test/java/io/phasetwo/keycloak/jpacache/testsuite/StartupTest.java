@@ -41,6 +41,7 @@ public class StartupTest extends KeycloakModelTest {
     inComittedTransaction(
         session -> {
           RealmModel masterRealm = session.realms().getRealmByName("master");
+          session.getContext().setRealm(masterRealm);
 
           assertNotNull(masterRealm);
 

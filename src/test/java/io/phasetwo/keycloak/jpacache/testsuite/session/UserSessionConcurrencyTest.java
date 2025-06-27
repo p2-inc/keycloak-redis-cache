@@ -17,6 +17,7 @@
 
 package io.phasetwo.keycloak.jpacache.testsuite.session;
 
+import static io.phasetwo.keycloak.jpacache.testsuite.LockObjectsForModification.lockUserSessionsForModification;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -40,6 +41,8 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
   @Override
   public void createEnvironment(KeycloakSession s) {
     RealmModel realm = createRealm(s, "test");
+    s.getContext().setRealm(realm);
+    s.getContext().setRealm(realm);    s.getContext().setRealm(realm);
     realm.setDefaultRole(
         s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
     realm.setSsoSessionIdleTimeout(1800);
@@ -94,7 +97,9 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
                         ClientModel client =
                             realm.getClientByClientId("client" + (n % CLIENTS_COUNT));
 
-                        UserSessionModel uSession = session.sessions().getUserSession(realm, uId);
+                        UserSessionModel uSession =
+                            lockUserSessionsForModification(
+                                session, () -> session.sessions().getUserSession(realm, uId));
                         AuthenticatedClientSessionModel cSession =
                             uSession.getAuthenticatedClientSessionByClient(client.getId());
                         if (cSession == null) {
