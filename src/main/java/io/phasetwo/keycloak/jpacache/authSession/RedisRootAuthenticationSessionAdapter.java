@@ -92,12 +92,20 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   @Override
   public void setTimestamp(int timestamp) {
+    setTimestampLong(TimeAdapter.fromSecondsToMilliseconds(timestamp));
+  }
+  
+  public void setTimestampLong(long timestamp) {
     setField("timestamp", timestamp);
+  }
+
+  public long getTimestampLong() {
+    return getLong("timestamp", 0);
   }
 
   @Override
   public int getTimestamp() {
-    return getInt("timestamp", 0);
+    return TimeAdapter.fromMilliSecondsToIntSeconds(getTimestampLong());
   }
 
   @Override
@@ -154,7 +162,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   public AuthenticationSessionModel createAuthenticationSession(ClientModel client) {
     Objects.requireNonNull(client, "The provided client can't be null!");
 
-    int timestamp = Time.currentTime();
+    long timestamp = Time.currentTimeMillis();
     int authSessionLifespanSeconds = getAuthSessionLifespan(client.getRealm());
 
     Map<String, AuthenticationSessionModel> authSessions = getAuthenticationSessions();
@@ -177,16 +185,14 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     }
 
     String tabId = generateTabId();
-    RedisAuthenticationSessionAdapter adapter =
-        new RedisAuthenticationSessionAdapter(session, client.getId(), tabId);
+    RedisAuthenticationSessionAdapter adapter = authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
     adapter.setClientUuid(client.getId());
     adapter.setParentSession(this);
     adapter.setTimestamp(timestamp);
-    authSessionTrx.addForSave(adapter);
     log.tracef("created authSession %s", adapter);
 
-    setTimestamp(timestamp);
-    long exp = TimeAdapter.fromSecondsToMilliseconds(timestamp + authSessionLifespanSeconds);
+    setTimestampLong(timestamp);
+    long exp = timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds);
     setExpiration(exp);
 
     getAuthenticationSessions().put(tabId, adapter);
@@ -200,7 +206,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     AuthenticationSessionModel as = getAuthenticationSessions().get(tabId);
     removeAuthenticationSession(as);
     getAuthenticationSessions().remove(tabId);
-    setTimestamp(Time.currentTime());
+    setTimestampLong(Time.currentTimeMillis());
   }
 
   private void removeAuthenticationSession(AuthenticationSessionModel authSession) {

@@ -63,12 +63,12 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     this.parent = parent;
   }
 
-  public void setTimestamp(int timestamp) {
+  public void setTimestamp(long timestamp) {
     setField("timestamp", timestamp);
   }
 
-  public int getTimestamp() {
-    return getInt("timestamp", 0);
+  public long getTimestamp() {
+    return getLong("timestamp", 0);
   }
 
   @Override
