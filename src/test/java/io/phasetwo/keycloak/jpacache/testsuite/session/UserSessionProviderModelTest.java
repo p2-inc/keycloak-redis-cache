@@ -37,6 +37,7 @@ import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 
+@SuppressWarnings("deprecation")
 public class UserSessionProviderModelTest extends KeycloakModelTest {
   private String realmId;
 
@@ -1390,6 +1391,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         });
   }
 
+  @SuppressWarnings("removal")
   @Test
   @Ignore("multiple transactions")
   public void testImportUserSessions() {

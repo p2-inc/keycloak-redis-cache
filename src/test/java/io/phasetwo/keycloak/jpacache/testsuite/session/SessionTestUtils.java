@@ -24,6 +24,7 @@ import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 
+@SuppressWarnings("deprecation")
 public class SessionTestUtils {
   public static void createClients(KeycloakSession s, RealmModel realm) {
     ClientModel clientModel = s.clients().addClient(realm, "test-app");

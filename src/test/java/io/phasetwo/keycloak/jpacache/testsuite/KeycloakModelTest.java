@@ -481,6 +481,7 @@ public abstract class KeycloakModelTest {
     }
   }
 
+  @SuppressWarnings("deprecation")
   private static void failWithThreadDump(LinkedList<Thread> threads, Exception e) {
     ThreadInfo[] infos = ManagementFactory.getThreadMXBean().dumpAllThreads(true, true);
     List<String> liveStacks =

@@ -172,6 +172,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
         .peek(alterUserSession == null ? us -> {} : us -> alterUserSession.accept(us));
   }
 
+  @SuppressWarnings("deprecation")
   private UserSessionModel createOfflineSession(
       KeycloakSession session, RealmModel realm, String userId, int sessionIndex) {
     final UserModel user = session.users().getUserById(realm, userId);

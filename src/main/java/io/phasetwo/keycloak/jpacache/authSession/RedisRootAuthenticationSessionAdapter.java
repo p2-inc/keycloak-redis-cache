@@ -94,7 +94,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   public void setTimestamp(int timestamp) {
     setTimestampLong(TimeAdapter.fromSecondsToMilliseconds(timestamp));
   }
-  
+
   public void setTimestampLong(long timestamp) {
     setField("timestamp", timestamp);
   }
@@ -152,7 +152,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     if (client == null || tabId == null) {
       return null;
     }
-    return authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
+    return authSessionTrx.getIfPresent(new AuthenticationSessionKey(client.getId(), tabId));
   }
 
   private static final Comparator<RedisAuthenticationSessionAdapter> TIMESTAMP_COMPARATOR =
@@ -175,7 +175,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
       if (tabId != null && !oldest.isEmpty()) {
         log.debugf(
-            "Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with TabId %s.",
+            "Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with tabId %s.",
             authSessionsLimit, tabId);
 
         // remove the oldest authentication session
@@ -185,7 +185,8 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     }
 
     String tabId = generateTabId();
-    RedisAuthenticationSessionAdapter adapter = authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
+    RedisAuthenticationSessionAdapter adapter =
+        authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
     adapter.setClientUuid(client.getId());
     adapter.setParentSession(this);
     adapter.setTimestamp(timestamp);
@@ -203,10 +204,21 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   @Override
   public void removeAuthenticationSessionByTabId(String tabId) {
-    AuthenticationSessionModel as = getAuthenticationSessions().get(tabId);
+    Map<String, AuthenticationSessionModel> authSessions = getAuthenticationSessions();
+    AuthenticationSessionModel as = authSessions.get(tabId);
+    if (as == null) return;
+    RealmModel realm = as.getRealm();
     removeAuthenticationSession(as);
-    getAuthenticationSessions().remove(tabId);
-    setTimestampLong(Time.currentTimeMillis());
+    authSessions.remove(tabId);
+    if (authSessions.isEmpty()) {
+      session.authenticationSessions().removeRootAuthenticationSession(realm, this);
+    } else {
+      long timestamp = Time.currentTimeMillis();
+      setTimestampLong(timestamp);
+      int authSessionLifespanSeconds = getAuthSessionLifespan(realm);
+      long exp = timestamp + TimeAdapter.fromSecondsToMilliseconds(authSessionLifespanSeconds);
+      setExpiration(exp);
+    }
   }
 
   private void removeAuthenticationSession(AuthenticationSessionModel authSession) {

@@ -108,6 +108,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
     rootSessionTrx.addForDelete(adapter);
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public void removeAllExpired() {
     log.tracef("removeAllExpired()%s", getShortStackTrace());
@@ -115,6 +116,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
         "[deprecated] Clearing expired entities should not be triggered manually. It is responsibility of the store to clear these.");
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public void removeExpired(RealmModel realm) {
     log.tracef("removeExpired(%s)%s", realm, getShortStackTrace());

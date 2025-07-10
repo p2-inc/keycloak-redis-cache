@@ -64,6 +64,7 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
     return true;
   }
 
+  @SuppressWarnings("deprecation")
   @Test
   public void testConcurrentNotesChange() throws InterruptedException {
     // Create user session

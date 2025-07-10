@@ -134,6 +134,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   }
 
   // xx
+  @SuppressWarnings("deprecation")
   @Override
   public UserSessionModel createUserSession(
       RealmModel realm,
@@ -593,6 +594,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     }
   }
 
+  @SuppressWarnings("removal")
   @Override
   public void importUserSessions(
       Collection<UserSessionModel> persistentUserSessions, boolean offline) {

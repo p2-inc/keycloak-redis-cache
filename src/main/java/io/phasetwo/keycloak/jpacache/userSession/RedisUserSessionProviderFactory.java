@@ -44,6 +44,7 @@ public class RedisUserSessionProviderFactory
     return PROVIDER_PRIORITY + 1;
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public void loadPersistentSessions(
       KeycloakSessionFactory sessionFactory, int maxErrors, int sessionsPerSegment) {

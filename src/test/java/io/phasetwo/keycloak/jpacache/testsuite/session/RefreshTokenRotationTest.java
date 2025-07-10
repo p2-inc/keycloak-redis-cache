@@ -41,6 +41,7 @@ public class RefreshTokenRotationTest extends KeycloakModelTest {
     s.realms().removeRealm(realmId);
   }
 
+  @SuppressWarnings("deprecation")
   @Test
   public void testRefreshTokenRotationMultiTab() {
     withRealm(
