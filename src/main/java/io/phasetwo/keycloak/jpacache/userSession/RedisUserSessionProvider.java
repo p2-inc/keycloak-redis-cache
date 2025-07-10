@@ -193,9 +193,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     setUserSessionExpiration(entity, SessionExpirationData.builder().realm(realm).build());
     if (TRANSIENT == persistenceState) {
       transientUserSessions.put(entity.getId(), entity);
-      // userSessionTrx.addForDelete(entity); todo what is "transient"?
-    } else {
-      // userSessionTrx.addForSave(entity); this is already implicit in the create
+      userSessionTrx.addForDelete(entity);
     }
 
     DeviceActivityManager.attachDevice(entity, session);
@@ -231,8 +229,9 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     Set<String> strIds = jedis.smembers(indexKey);
     if (strIds != null && !strIds.isEmpty()) {
       return strIds.stream()
-          .map(str -> UserSessionKey.fromString(str))
-          .map(k -> userSessionTrx.getIfPresent(k))
+          .map(UserSessionKey::fromString)
+          .map(userSessionTrx::getIfPresent)
+          .filter(Objects::nonNull)
           .filter(s -> s.getRealmId().equals(realm.getId()))
           .filter(s -> offline == s.isOffline())
           .map(s -> (UserSessionModel) s);
@@ -364,6 +363,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     }
     // https://github.com/keycloak/keycloak/blob/archive/map-store/model/map/src/main/java/org/keycloak/models/map/userSession/MapUserSessionProvider.java#L326-L332
     if (a != null && Objects.equals(session.getRealm(), realm) && !session.isOffline()) {
+      log.infof("adding for delete %s", a);
       userSessionTrx.addForDelete(a);
     }
   }
@@ -430,10 +430,11 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     removeUserSessions(realm);
   }
 
-  // xx
+  // TODO this isn't getting called when the client gets removed.
+  // http://github.com/keycloak/keycloak/blob/release/26.3/services/src/main/java/org/keycloak/services/managers/ClientManager.java#L104
   @Override
   public void onClientRemoved(RealmModel realm, ClientModel client) {
-    log.tracef("onRealmRemoved(%s-%s)%s", realm, client, getShortStackTrace());
+    log.tracef("onClientRemoved(%s-%s)%s", realm, client, getShortStackTrace());
     getUserSessionsStream(realm, client).forEach(a -> removeSession(a));
   }
 

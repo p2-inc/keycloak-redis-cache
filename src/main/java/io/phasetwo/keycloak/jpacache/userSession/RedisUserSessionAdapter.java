@@ -273,27 +273,26 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
       boolean rememberMe,
       String brokerSessionId,
       String brokerUserId) {
-    // todo
-    // String correspondingSessionId = getNote(CORRESPONDING_SESSION_ID);
+    String correspondingSessionId = getNote(CORRESPONDING_SESSION_ID);
 
-    setRealmId(getRealmId());
-    setUserId(getUserId());
+    setRealmId(realm.getId());
+    setUserId(user.getId());
     setLoginUsername(loginUsername);
     setIpAddress(ipAddress);
     setAuthMethod(authMethod);
     setRememberMe(rememberMe);
     setBrokerSessionId(brokerSessionId);
     setBrokerUserId(brokerUserId);
-    setTimestamp(Time.currentTime());
-    setLastSessionRefresh(Time.currentTime());
-    setNotes(Maps.newHashMap());
+    int currentTime = Time.currentTime();
+    setTimestamp(currentTime);
+    setLastSessionRefresh(currentTime);
+    setNotes(Maps.newConcurrentMap());
     removeField("state");
     removeAuthenticatedClientSessions(Sets.newHashSet(getAuthenticatedClientSessions().keySet()));
 
-    // todo
-    // if (correspondingSessionId != null) {
-    //   addNotes(CORRESPONDING_SESSION_ID, correspondingSessionId);
-    // }
+    if (correspondingSessionId != null) {
+      setNote(CORRESPONDING_SESSION_ID, correspondingSessionId);
+    }
   }
 
   @Override

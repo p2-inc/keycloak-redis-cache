@@ -22,7 +22,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     extends AbstractKeycloakTransaction {
 
   private final Map<K, A> cache = Maps.newHashMap();
-  private final Set<A> toDelete = Sets.newHashSet();
+  private final Map<K, A> toDelete = Maps.newHashMap();
   private final AdapterSupplier<K, A> adapterSupplier;
   private final Jedis jedis;
 
@@ -47,7 +47,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   /** Gets the value only if present at the key. Returns null otherwise. */
   public A getIfPresent(K k) {
     if (k == null) return null;
-    if (toDelete.contains(k)) return null;
+    if (toDelete.containsKey(k)) return null; // this is wrong
     A model = cache.get(k);
     if (model != null && !expired(k, model)) return model;
     String key = k.key();
@@ -93,7 +93,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
     // Queue all HGETALLs
     for (K key : keys) {
-      if (toDelete.contains(key)) continue;
+      if (toDelete.containsKey(key)) continue;
       A model = cache.get(key);
       if (model != null) {
         result.put(key, model);
@@ -125,7 +125,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   }
 
   public void addForDelete(A model) {
-    toDelete.add(model);
+    toDelete.put(model.getKey(), model);
   }
 
   public void cachedToDelete() {
@@ -140,12 +140,12 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
     // Keys to watch: all affected session keys + index
     for (A model : cache.values()) {
-      if (!toDelete.contains(model.getKey())) {
+      if (!toDelete.containsKey(model.getKey())) {
         log.tracef("adding key to WATCH %s", model.getKey().key());
         keysToWatch.add(model.getKey().key());
       }
     }
-    for (A model : toDelete) {
+    for (A model : toDelete.values()) {
       log.tracef("adding key to WATCH %s", model.getKey().key());
       keysToWatch.add(model.getKey().key());
     }
@@ -168,7 +168,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       for (A model : cache.values()) {
         String key = model.getKey().key();
 
-        if (model.isMarkedForDelete() || toDelete.contains(model.getKey())) {
+        if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
           log.tracef("[redis] DEL %s", key);
           txn.del(key);
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
@@ -208,7 +208,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       }
       // will this ever run?
       log.tracef("toDelete still has %d entries", toDelete.size());
-      for (A model : toDelete) {
+      for (A model : toDelete.values()) {
         String key = model.getKey().key();
         log.tracef("[redis] DEL %s", key);
         txn.del(key);
