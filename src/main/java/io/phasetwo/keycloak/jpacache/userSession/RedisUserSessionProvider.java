@@ -71,7 +71,12 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     RedisAuthenticatedClientSessionAdapter entity =
         createAuthenticatedClientSessionEntityInstance(
-            null, userSession.getId(), realm.getId(), client.getId(), userSession.isOffline());
+            null,
+            userSession.getId(),
+            realm.getId(),
+            client.getId(),
+            userSession.isOffline(),
+            isTransient(userSession));
 
     String started = String.valueOf(entity.getTimestamp());
     entity.setNote(AuthenticatedClientSessionModel.STARTED_AT_NOTE, started);
@@ -260,7 +265,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     if (strIds != null && !strIds.isEmpty()) {
       return strIds.stream()
           .map(str -> AuthenticatedClientSessionKey.fromString(str))
-          .map(k -> clientSessionTrx.get(k))
+          .map(k -> clientSessionTrx.getIfPresent(k))
+          .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
           .map(c -> c.getUserSession())
@@ -493,6 +499,16 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     removeSession(entity);
   }
 
+  static boolean isTransient(UserSessionModel userSession) {
+    if (userSession == null || userSession.getPersistenceState() == null) return false;
+    return (userSession.getPersistenceState()
+        == UserSessionModel.SessionPersistenceState.TRANSIENT);
+  }
+
+  static boolean isPersistent(UserSessionModel userSession) {
+    return !isTransient(userSession);
+  }
+
   @Override
   public AuthenticatedClientSessionModel createOfflineClientSession(
       AuthenticatedClientSessionModel clientSession, UserSessionModel offlineUserSession) {
@@ -501,7 +517,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         clientSession, offlineUserSession, getShortStackTrace());
 
     RedisAuthenticatedClientSessionAdapter clientSessionEntity =
-        createAuthenticatedClientSessionInstance(clientSession, true);
+        createAuthenticatedClientSessionInstance(
+            clientSession, true, isTransient(offlineUserSession));
     int currentTime = Time.currentTime();
     clientSessionEntity.setNote(
         AuthenticatedClientSessionModel.STARTED_AT_NOTE, String.valueOf(currentTime));
@@ -583,7 +600,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     if (strIds != null && !strIds.isEmpty()) {
       return strIds.stream()
           .map(str -> AuthenticatedClientSessionKey.fromString(str))
-          .map(k -> clientSessionTrx.get(k))
+          .map(k -> clientSessionTrx.getIfPresent(k))
+          .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
           .map(c -> c.getUserSession())
@@ -738,7 +756,12 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   }
 
   private RedisAuthenticatedClientSessionAdapter createAuthenticatedClientSessionEntityInstance(
-      String id, String userSessionId, String realmId, String clientId, boolean offline) {
+      String id,
+      String userSessionId,
+      String realmId,
+      String clientId,
+      boolean offline,
+      boolean stateTransient) {
     int timestamp = Time.currentTime();
     id = id == null ? KeycloakModelUtils.generateId() : id;
     RedisAuthenticatedClientSessionAdapter entity =
@@ -748,18 +771,22 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     entity.setClientUuid(clientId);
     entity.setParentId(userSessionId);
     entity.setTimestamp(timestamp);
+    if (stateTransient) {
+      clientSessionTrx.addForDelete(entity);
+    }
     return entity;
   }
 
   private RedisAuthenticatedClientSessionAdapter createAuthenticatedClientSessionInstance(
-      AuthenticatedClientSessionModel clientSession, boolean offline) {
+      AuthenticatedClientSessionModel clientSession, boolean offline, boolean stateTransient) {
     RedisAuthenticatedClientSessionAdapter entity =
         createAuthenticatedClientSessionEntityInstance(
             null,
             clientSession.getUserSession().getId(),
             clientSession.getRealm().getId(),
             clientSession.getClient().getId(),
-            offline);
+            offline,
+            stateTransient);
     entity.setAction(clientSession.getAction());
     entity.setProtocol(clientSession.getProtocol());
     entity.setNotes(clientSession.getNotes());
