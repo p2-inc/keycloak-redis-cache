@@ -5,18 +5,25 @@ import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
 import static org.keycloak.models.UserSessionModel.SessionPersistenceState.TRANSIENT;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import io.phasetwo.keycloak.jpacache.userSession.expiration.SessionExpirationData;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.jbosslog.JBossLog;
+import org.keycloak.common.util.ConcurrentMultivaluedHashMap;
+import org.keycloak.common.util.MultivaluedMap;
 import org.keycloak.common.util.Time;
 import org.keycloak.device.DeviceActivityManager;
 import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.Response;
 
 @JBossLog
 public class RedisUserSessionProvider implements UserSessionProvider {
@@ -29,6 +36,11 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       clientSessionTrx;
 
   private final Map<String, RedisUserSessionAdapter> transientUserSessions = new HashMap<>();
+
+  private final MultivaluedMap<String, RedisUserSessionAdapter> brokerSessionIdSessions =
+      new ConcurrentMultivaluedHashMap<>();
+  private final MultivaluedMap<String, RedisUserSessionAdapter> brokerUserIdSessions =
+      new ConcurrentMultivaluedHashMap<>();
 
   public RedisUserSessionProvider(KeycloakSession session, Jedis jedis) {
     this.session = session;
@@ -230,8 +242,24 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
   private Stream<UserSessionModel> getUserSessionsStreamByIndexKey(
       String indexKey, RealmModel realm, boolean offline) {
-    log.debugf("[redis] SMEMBERS %s", indexKey);
-    Set<String> strIds = jedis.smembers(indexKey);
+    return getUserSessionsStreamByIndexKey(new String[] {indexKey}, realm, offline);
+  }
+
+  private Stream<UserSessionModel> getUserSessionsStreamByIndexKey(
+      String[] indexKeys, RealmModel realm, boolean offline) {
+    log.debugf("[redis] SMEMBERS %s", indexKeys);
+    Pipeline pipeline = jedis.pipelined();
+    List<Response<Set<String>>> responses = Lists.newArrayList();
+    for (String indexKey : indexKeys) {
+      responses.add(pipeline.smembers(indexKey));
+    }
+    pipeline.sync();
+    Set<String> strIds =
+        responses.stream()
+            .map(Response::get)
+            .filter(Objects::nonNull)
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
     if (strIds != null && !strIds.isEmpty()) {
       return strIds.stream()
           .map(UserSessionKey::fromString)
@@ -289,23 +317,41 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         .limit(maxResults != null && maxResults > 0 ? maxResults : Long.MAX_VALUE);
   }
 
-  // xx
   @Override
   public Stream<UserSessionModel> getUserSessionByBrokerUserIdStream(
       RealmModel realm, String brokerUserId) {
     log.tracef(
         "getUserSessionByBrokerUserIdStream(%s, %s)%s", realm, brokerUserId, getShortStackTrace());
 
+    // local to transaction
+    List<RedisUserSessionAdapter> as = brokerUserIdSessions.getList(brokerUserId);
+    if (as == null) as = Lists.newArrayList();
+    // from the store
     String indexKey = String.format("user-session:broker-user-index:%s", brokerUserId);
-    return getUserSessionsStreamByIndexKey(indexKey, realm, false);
+    return mergeAndDeduplicate(
+        as.stream().map(a -> (UserSessionModel) a).filter(a -> !a.isOffline()),
+        getUserSessionsStreamByIndexKey(indexKey, realm, false),
+        UserSessionModel::getId);
   }
 
-  // xx
+  static <T> Stream<T> mergeAndDeduplicate(
+      Stream<T> stream1, Stream<T> stream2, Function<T, Object> idExtractor) {
+    return Stream.concat(stream1, stream2)
+        .collect(
+            Collectors.toMap(idExtractor, Function.identity(), (existing, replacement) -> existing))
+        .values()
+        .stream();
+  }
+
   @Override
   public UserSessionModel getUserSessionByBrokerSessionId(
       RealmModel realm, String brokerSessionId) {
     log.tracef(
         "getUserSessionByBrokerSessionId(%s, %s)%s", realm, brokerSessionId, getShortStackTrace());
+
+    // local to transaction
+    RedisUserSessionAdapter a = brokerSessionIdSessions.getFirst(brokerSessionId);
+    if (a != null && !a.isMarkedForDelete()) return a;
 
     String indexKey = String.format("user-session:broker-session-index:%s", brokerSessionId);
     return getUserSessionsStreamByIndexKey(indexKey, realm, false).findFirst().orElse(null);
@@ -322,6 +368,9 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     if (a == null) {
       return null;
     }
+    log.tracef(
+        "found session %s. comparing realm %s, offline %b, predicate %s",
+        a, realm.getId(), offline, predicate); // yyyy
     if (!realm.getId().equals(a.getRealmId())) return null;
     if (offline != a.isOffline()) return null;
     return Stream.of(a).filter(predicate).findFirst().orElse(null);
@@ -567,8 +616,15 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         "getOfflineUserSessionByBrokerUserIdStream(%s, %s)%s",
         realm, brokerUserId, getShortStackTrace());
 
+    // local to transaction
+    List<RedisUserSessionAdapter> as = brokerUserIdSessions.getList(brokerUserId);
+    if (as == null) as = Lists.newArrayList();
+    // from the store
     String indexKey = String.format("user-session:broker-user-index:%s", brokerUserId);
-    return getUserSessionsStreamByIndexKey(indexKey, realm, true);
+    return mergeAndDeduplicate(
+        as.stream().map(a -> (UserSessionModel) a).filter(a -> a.isOffline()),
+        getUserSessionsStreamByIndexKey(indexKey, realm, true),
+        UserSessionModel::getId);
   }
 
   @Override
@@ -752,6 +808,12 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     entity.setOffline(offline);
     entity.setTimestamp(timestamp);
     entity.setLastSessionRefresh(timestamp);
+    if (brokerSessionId != null) {
+      brokerSessionIdSessions.add(brokerSessionId, entity);
+    }
+    if (brokerUserId != null) {
+      brokerUserIdSessions.add(brokerUserId, entity);
+    }
     return entity;
   }
 

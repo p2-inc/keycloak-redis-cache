@@ -1,5 +1,8 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
+import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
+
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -8,6 +11,7 @@ import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
@@ -66,6 +70,10 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     b.put(
         String.format("user-session:broker-session-index:%s", getBrokerSessionId()),
         getKey().key());
+    String csi = getNote(CORRESPONDING_SESSION_ID);
+    if (!Strings.isNullOrEmpty(csi)) {
+      b.put(String.format("user-session:corresponding-session-index:%s", csi), getKey().key());
+    }
     return b.build();
   }
 
@@ -80,7 +88,8 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
       clientSessions =
           strIds.stream()
               .map(str -> AuthenticatedClientSessionKey.fromString(str))
-              .map(k -> clientSessionTrx.get(k))
+              .map(k -> clientSessionTrx.getIfPresent(k))
+              .filter(Objects::nonNull)
               .collect(
                   Collectors.toMap(
                       RedisAuthenticatedClientSessionAdapter::getClientUuid,
@@ -260,6 +269,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public void setState(UserSessionModel.State state) {
+    if (state == null) return;
     setField("state", state.name());
   }
 

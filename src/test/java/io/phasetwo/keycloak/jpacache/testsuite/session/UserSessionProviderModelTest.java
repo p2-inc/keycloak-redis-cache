@@ -1177,6 +1177,9 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
           assertThat(brokerSessions.get(0).getBrokerSessionId(), is("brokerSession"));
           assertThat(brokerSessions.get(0).getBrokerUserId(), is("brokerUserId"));
 
+          // xgp - are we supposed to look up the corresponding session? Because the one that has
+          // this
+          // id is not an offline session.
           UserSessionModel sessionByPredicate =
               s.sessions()
                   .getUserSessionWithPredicate(
