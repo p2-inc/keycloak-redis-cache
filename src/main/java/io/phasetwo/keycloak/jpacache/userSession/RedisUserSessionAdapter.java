@@ -260,7 +260,9 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public void setState(UserSessionModel.State state) {
-    setField("state", state.name());
+    if (state != null) {
+      setField("state", state.name());
+    }
   }
 
   @Override

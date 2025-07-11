@@ -721,7 +721,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     entity.setNotes(userSession.getNotes());
     entity.setNote(CORRESPONDING_SESSION_ID, userSession.getId());
-    entity.setState(userSession.getState());
+     entity.setState(userSession.getState());
     entity.setTimestamp(userSession.getStarted());
     entity.setLastSessionRefresh(userSession.getLastSessionRefresh());
     return entity;
