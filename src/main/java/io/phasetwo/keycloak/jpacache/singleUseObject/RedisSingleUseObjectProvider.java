@@ -53,8 +53,8 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
-    // log.debugf("[redis] HSET %s %s", key, notes);
-    // jedis.hset(key, stripNulls(notes));
+    log.debugf("[redis] HSET %s %s", key, notes);
+    jedis.hset(key, stripNulls(notes));
     RedisSingleUseObjectAdapter a = suoTrx.get(new SingleUseObjectKey(key));
     a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
     replaceNotes(a, notes);
