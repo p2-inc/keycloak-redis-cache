@@ -388,19 +388,15 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   @Override
   public Map<String, Long> getActiveClientSessionStats(RealmModel realm, boolean offline) {
     log.tracef("getActiveClientSessionStats(%s, %s)%s", realm, offline, getShortStackTrace());
-
-    /* TODO
-        return userSessionRepository.findAll().stream()
-                .filter(s -> s.getRealmId().equals(realm.getId()))
-                .filter(s -> s.getOffline() == offline)
-                .map(entityToAdapterFunc(realm))
-                .filter(Objects::nonNull)
-                .map(UserSessionModel::getAuthenticatedClientSessions)
-                .map(Map::keySet)
-                .flatMap(Collection::stream)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-    */
-    return null;
+    String indexKey = String.format("user-session:realm-index:%s", realm.getId());
+    return getUserSessionsStreamByIndexKey(indexKey, realm, false)
+        .filter(s -> s.isOffline() == offline)
+        .map(this::getUserSessionAdapter)
+        .filter(Objects::nonNull)
+        .map(UserSessionModel::getAuthenticatedClientSessions)
+        .map(Map::keySet)
+        .flatMap(Collection::stream)
+        .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
   }
 
   // xx
@@ -777,7 +773,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     entity.setNotes(userSession.getNotes());
     entity.setNote(CORRESPONDING_SESSION_ID, userSession.getId());
-     entity.setState(userSession.getState());
+    entity.setState(userSession.getState());
     entity.setTimestamp(userSession.getStarted());
     entity.setLastSessionRefresh(userSession.getLastSessionRefresh());
     return entity;

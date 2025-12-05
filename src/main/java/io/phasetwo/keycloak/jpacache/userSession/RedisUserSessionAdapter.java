@@ -1,7 +1,5 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
-import static org.keycloak.models.UserSessionModel.CORRESPONDING_SESSION_ID;
-
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -16,11 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
-import org.keycloak.models.AuthenticatedClientSessionModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionModel;
+import org.keycloak.models.*;
 import redis.clients.jedis.Jedis;
 
 @JBossLog
@@ -97,11 +91,6 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     }
     clientSessionsInitialized = true;
     return clientSessions;
-  }
-
-  public void addAuthenticatedClientSession(AuthenticatedClientSessionModel clientSession) {
-    if (!clientSessionsInitialized) getAuthenticatedClientSessions();
-    clientSessions.put(clientSession.getClient().getId(), clientSession);
   }
 
   @Override

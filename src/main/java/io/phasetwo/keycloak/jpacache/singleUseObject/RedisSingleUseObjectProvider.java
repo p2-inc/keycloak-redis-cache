@@ -1,6 +1,7 @@
 package io.phasetwo.keycloak.jpacache.singleUseObject;
 
 import com.google.common.collect.Maps;
+import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
 import lombok.extern.jbosslog.JBossLog;
@@ -25,14 +26,16 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
 
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
+    log.debugf("[redis] Put %s %s", key, notes);
     RedisSingleUseObjectAdapter a = suoTrx.get(new SingleUseObjectKey(key));
-    a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
-    replaceNotes(a, notes);
-  }
-
-  private void replaceNotes(RedisSingleUseObjectAdapter adapter, Map<String, String> notes) {
-    log.debugf("replacing notes for %s with %s", adapter.getName(), notes);
-    adapter.replaceNotes(notes);
+    if (a != null) {
+      a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
+      a.replaceNotes(notes);
+    } else {
+      var suoAdapter = new RedisSingleUseObjectAdapter(session, key, notes);
+      suoAdapter.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
+      suoTrx.addForSave(suoAdapter);
+    }
   }
 
   @Override
@@ -41,7 +44,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     if (a == null) {
       return null;
     } else {
-      return a.getNotes();
+      return convertNulls(a.getNotes());
     }
   }
 
@@ -50,15 +53,16 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) return null;
     Map<String, String> notes = Maps.newHashMap(a.getNotes()); // TODO need to clone?
+    //    Map<String, String> ns = notes == null ? null : convertNulls(notes);
     suoTrx.addForDelete(a);
-    return notes;
+    return convertNulls(notes);
   }
 
   @Override
   public boolean replace(String key, Map<String, String> notes) {
     RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     if (a == null) return false;
-    replaceNotes(a, notes);
+    a.replaceNotes(notes);
     return true;
   }
 
@@ -79,6 +83,22 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   public boolean contains(String key) {
     RedisSingleUseObjectAdapter a = suoTrx.getIfPresent(new SingleUseObjectKey(key));
     return (a != null);
+  }
+
+  /** Replace sentinel values in the map with actual nulls. */
+  public static Map<String, String> convertNulls(Map<String, String> input) {
+    if (input == null || input.isEmpty()) return input;
+    Map<String, String> output = Maps.newHashMap();
+    for (Map.Entry<String, String> entry : input.entrySet()) {
+      if (entry.getValue() == null) {
+        output.put(entry.getKey(), null); // null is allowed here
+      } else if (MapEntity.NULL_SENTINEL.equals(entry.getValue())) {
+        output.put(entry.getKey(), null);
+      } else {
+        output.put(entry.getKey(), entry.getValue());
+      }
+    }
+    return output;
   }
 
   @Override
