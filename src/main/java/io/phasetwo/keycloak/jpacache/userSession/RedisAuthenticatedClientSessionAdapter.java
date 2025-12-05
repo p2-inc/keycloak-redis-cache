@@ -21,8 +21,7 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   private static final String REFRESH_TOKEN_LAST_USE_PREFIX = "refreshTokenLastUsePrefix";
 
-
-    public RedisAuthenticatedClientSessionAdapter(KeycloakSession session, String id) {
+  public RedisAuthenticatedClientSessionAdapter(KeycloakSession session, String id) {
     this(session, id, null);
   }
 
@@ -119,37 +118,43 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   @Override
   public void setRefreshTokenUseCount(String reuseId, int count) {
-      String currentCountStr = getNote(REFRESH_TOKEN_USE_PREFIX + reuseId);
-      int currentCount = currentCountStr == null || currentCountStr.isEmpty() ? 0 : Integer.parseInt(currentCountStr);
+    String currentCountStr = getNote(REFRESH_TOKEN_USE_PREFIX + reuseId);
+    int currentCount =
+        currentCountStr == null || currentCountStr.isEmpty()
+            ? 0
+            : Integer.parseInt(currentCountStr);
 
-      if (count != currentCount) {
-          setNote(REFRESH_TOKEN_LAST_USE_PREFIX + reuseId, String.valueOf(Time.currentTimeMillis()));
-          setNote(REFRESH_TOKEN_USE_PREFIX + reuseId, String.valueOf(count));
-      }
+    if (count != currentCount) {
+      setNote(REFRESH_TOKEN_LAST_USE_PREFIX + reuseId, String.valueOf(Time.currentTimeMillis()));
+      setNote(REFRESH_TOKEN_USE_PREFIX + reuseId, String.valueOf(count));
+    }
   }
 
-    @Override
-    public int getRefreshTokenUseCount(String reuseId) {
-        String currentCount = getNote(REFRESH_TOKEN_USE_PREFIX + reuseId);
+  @Override
+  public int getRefreshTokenUseCount(String reuseId) {
+    String currentCount = getNote(REFRESH_TOKEN_USE_PREFIX + reuseId);
 
-        if (currentCount == null) {
-            return 0;
-        }
-
-        String lastUseTimestampString = getNote(REFRESH_TOKEN_LAST_USE_PREFIX + reuseId);
-        if (lastUseTimestampString == null) {
-            return Integer.parseInt(currentCount);
-        }
-
-        long lastUseTimestamp = Long.parseLong(lastUseTimestampString);
-        if (lastUseTimestamp > Time.currentTimeMillis() -
-                session.realms().getRealm(getRealmId()).getAttribute("refreshTokenReuseInterval", 0L)) {
-            return Math.max(0, Integer.parseInt(currentCount) - 1); // do not count refresh
-        }
-
-        return Integer.parseInt(currentCount);
+    if (currentCount == null) {
+      return 0;
     }
 
+    String lastUseTimestampString = getNote(REFRESH_TOKEN_LAST_USE_PREFIX + reuseId);
+    if (lastUseTimestampString == null) {
+      return Integer.parseInt(currentCount);
+    }
+
+    long lastUseTimestamp = Long.parseLong(lastUseTimestampString);
+    if (lastUseTimestamp
+        > Time.currentTimeMillis()
+            - session
+                .realms()
+                .getRealm(getRealmId())
+                .getAttribute("refreshTokenReuseInterval", 0L)) {
+      return Math.max(0, Integer.parseInt(currentCount) - 1); // do not count refresh
+    }
+
+    return Integer.parseInt(currentCount);
+  }
 
   @Override
   public void setRefreshTokenLastRefresh(String reuseId, int refreshTokenLastRefresh) {

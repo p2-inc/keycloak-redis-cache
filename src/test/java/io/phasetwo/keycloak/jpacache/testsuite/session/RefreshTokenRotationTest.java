@@ -16,7 +16,7 @@ public class RefreshTokenRotationTest extends KeycloakModelTest {
     RealmModel realm = createRealm(s, "test");
     s.getContext().setRealm(realm);
 
-      realm.setDefaultRole(
+    realm.setDefaultRole(
         s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
 
     s.users().addUser(realm, "user1").setEmail("user1@localhost");
