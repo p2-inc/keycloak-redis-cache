@@ -57,6 +57,9 @@ public class DisabledStickySessionEncoderProvider
   }
 
   @Override
+  public void setShouldAttachRoute(boolean shouldAttachRoute) {}
+
+  @Override
   public void init(Config.Scope config) {}
 
   @Override

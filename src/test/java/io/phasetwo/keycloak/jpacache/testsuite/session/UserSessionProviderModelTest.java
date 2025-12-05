@@ -37,12 +37,15 @@ import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 
+@SuppressWarnings("deprecation")
 public class UserSessionProviderModelTest extends KeycloakModelTest {
   private String realmId;
 
   @Override
   public void createEnvironment(KeycloakSession s) {
     RealmModel realm = createRealm(s, "test");
+    s.getContext().setRealm(realm);
+
     realm.setOfflineSessionIdleTimeout(Constants.DEFAULT_OFFLINE_SESSION_IDLE_TIMEOUT);
     realm.setDefaultRole(
         s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
@@ -60,6 +63,8 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   @Override
   public void cleanEnvironment(KeycloakSession s) {
     RealmModel realm = s.realms().getRealm(realmId);
+    s.getContext().setRealm(realm);
+
     s.sessions().removeUserSessions(realm);
 
     UserModel user1 = s.users().getUserByUsername(realm, "user1");
@@ -102,8 +107,14 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         session -> {
           RealmModel realm = session.realms().getRealm(realmId);
 
-          session.sessions().removeUserSession(realm, origSessions[0]);
-          session.sessions().removeUserSession(realm, origSessions[1]);
+          session
+              .sessions()
+              .removeUserSession(
+                  realm, session.sessions().getUserSession(realm, origSessions[0].getId()));
+          session
+              .sessions()
+              .removeUserSession(
+                  realm, session.sessions().getUserSession(realm, origSessions[1].getId()));
         });
 
     inComittedTransaction(
@@ -652,7 +663,14 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         (s, r) -> {
           UserSessionModel userSession = createSessions(s, r.getId())[0];
 
-          s.sessions().removeUserSession(r, userSession);
+          s.sessions()
+              .removeUserSession(
+                  r,
+                  s.sessions()
+                      .getUserSession(
+                          r,
+                          userSession
+                              .getId())); /// seems the remove User session is not working. @xgp
 
           assertNull(s.sessions().getUserSession(r, userSession.getId()));
           return null;
@@ -1147,7 +1165,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
           s.sessions().createOfflineUserSession(session);
 
           UserSessionModel currentSession =
-              s.sessions().getOfflineUserSessionByBrokerSessionId(realm, "brokerSession");
+              s.sessions().getUserSessionByBrokerSessionId(realm, "brokerSession");
           assertThat(currentSession.getBrokerSessionId(), is("brokerSession"));
           assertThat(currentSession.getBrokerUserId(), is("brokerUserId"));
 
@@ -1159,6 +1177,9 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
           assertThat(brokerSessions.get(0).getBrokerSessionId(), is("brokerSession"));
           assertThat(brokerSessions.get(0).getBrokerUserId(), is("brokerUserId"));
 
+          // xgp - are we supposed to look up the corresponding session? Because the one that has
+          // this
+          // id is not an offline session.
           UserSessionModel sessionByPredicate =
               s.sessions()
                   .getUserSessionWithPredicate(
@@ -1373,6 +1394,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
         });
   }
 
+  @SuppressWarnings("removal")
   @Test
   @Ignore("multiple transactions")
   public void testImportUserSessions() {

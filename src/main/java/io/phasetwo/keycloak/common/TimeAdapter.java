@@ -67,6 +67,18 @@ public class TimeAdapter {
     return TimeUnit.MILLISECONDS.toSeconds(milliSeconds);
   }
 
+  public static int fromMilliSecondsToIntSeconds(Long milliSeconds) {
+    Long longSeconds = fromMilliSecondsToSeconds(milliSeconds);
+    if (longSeconds == null) return 0;
+    if (longSeconds > Integer.MAX_VALUE) {
+      LOG.warn(
+          "Trimmed time value found in the map store; value too large and not supported in core");
+      return Integer.MAX_VALUE;
+    } else {
+      return longSeconds.intValue();
+    }
+  }
+
   public static Long fromSecondsToMilliseconds(int seconds) {
     return fromSecondsToMilliseconds(
         fromIntegerWithTimeInSecondsToLongWithTimeAsInSeconds(seconds));

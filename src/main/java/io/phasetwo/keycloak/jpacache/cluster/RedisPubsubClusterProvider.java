@@ -1,0 +1,176 @@
+package io.phasetwo.keycloak.jpacache.cluster;
+
+import java.util.List;
+import java.util.concurrent.*;
+import lombok.extern.jbosslog.JBossLog;
+import org.keycloak.cluster.ClusterEvent;
+import org.keycloak.cluster.ClusterListener;
+import org.keycloak.cluster.ClusterProvider;
+import org.keycloak.cluster.ClusterProvider.DCNotify;
+import org.keycloak.cluster.ExecutionResult;
+import org.keycloak.cluster.infinispan.TaskCallback;
+import org.keycloak.common.util.ConcurrentMultivaluedHashMap;
+import org.keycloak.models.*;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.utils.KeycloakModelUtils;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPubSub;
+import redis.clients.jedis.params.SetParams;
+
+@JBossLog
+public class RedisPubsubClusterProvider implements ClusterProvider {
+
+  public static final String TASK_KEY_PREFIX = "task::";
+
+  private final KeycloakSession session;
+  private final Jedis publisher;
+  private final Jedis subscriber;
+  private final int clusterStartupTime;
+  private final ExecutorService executor;
+  private final ConcurrentMultivaluedHashMap<String, ClusterListener> listeners =
+      new ConcurrentMultivaluedHashMap<>();
+  private final ConcurrentMap<String, TaskCallback> taskCallbacks = new ConcurrentHashMap<>();
+
+  private static final String CHANNEL_NAME = "keycloak-cluster";
+
+  public RedisPubsubClusterProvider(
+      KeycloakSession session,
+      Jedis publisher,
+      Jedis subscriber,
+      int clusterStartupTime,
+      ExecutorService executor) {
+    this.session = session;
+    this.publisher = publisher;
+    this.subscriber = subscriber;
+    this.clusterStartupTime = clusterStartupTime;
+    this.executor = executor;
+
+    executor.submit(
+        () -> {
+          try {
+            subscriber.subscribe(
+                new JedisPubSub() {
+                  @Override
+                  public void onMessage(String channel, String message) {
+                    if (CHANNEL_NAME.equals(channel)) {
+                      handleMessage(message);
+                    }
+                  }
+                },
+                CHANNEL_NAME);
+          } catch (Exception e) {
+            log.error("Failed to subscribe to Redis channel", e);
+          }
+        });
+  }
+
+  @Override
+  public int getClusterStartupTime() {
+    return clusterStartupTime;
+  }
+
+  // @Override
+  // public void notify(String taskKey, Collection<? extends ClusterEvent> events, boolean
+  // ignoreSender, DCNotify dcNotify) {
+
+  @Override
+  public void notify(String taskKey, ClusterEvent event, boolean ignoreSender, DCNotify dcNotify) {
+    try {
+      String serialized =
+          ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
+      log.debugf("notify %s %s", taskKey, serialized);
+      publisher.publish(CHANNEL_NAME, serialized);
+    } catch (Exception e) {
+      log.errorf(e, "Failed to publish cluster event %s", taskKey);
+    }
+  }
+
+  private void handleMessage(String message) {
+    try {
+      ClusterEventSerializer.ClusterMessage deserialized =
+          ClusterEventSerializer.deserialize(message);
+      log.debugf("handleMessage %s %s", deserialized.getEventKey(), deserialized.getEvents());
+
+      String eventKey = deserialized.getEventKey();
+      List<ClusterListener> cls = listeners.get(eventKey);
+      if (cls != null) {
+        for (var e : deserialized.getEvents()) {
+          cls.forEach(e);
+        }
+      }
+
+    } catch (Exception e) {
+      log.error("Failed to handle Redis cluster event", e);
+    }
+  }
+
+  @Override
+  public void registerListener(String taskKey, ClusterListener task) {
+    this.listeners.add(taskKey, task);
+  }
+
+  @Override
+  public <T> ExecutionResult<T> executeIfNotExecuted(
+      String taskKey, int lifespanSeconds, Callable<T> task) {
+    String lockKey = "kc:cluster:lock:" + taskKey;
+    String taskId = KeycloakModelUtils.generateId();
+
+    String lockResult =
+        publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
+    if ("OK".equals(lockResult)) {
+      try {
+        try {
+          T result = task.call();
+          return ExecutionResult.executed(result);
+        } catch (RuntimeException re) {
+          throw re;
+        } catch (Exception e) {
+          throw new RuntimeException("Unexpected exception when executed task " + taskKey, e);
+        }
+      } finally {
+        publisher.del(lockKey);
+      }
+    } else {
+      return ExecutionResult.notExecuted();
+    }
+  }
+
+  @Override
+  public Future<Boolean> executeIfNotExecutedAsync(
+      String taskKey, int taskTimeoutInSeconds, Callable task) {
+    TaskCallback newCallback = new TaskCallback();
+    TaskCallback callback = registerTaskCallback(TASK_KEY_PREFIX + taskKey, newCallback);
+
+    // We successfully submitted our task
+    if (newCallback == callback) {
+      Callable<Boolean> wrappedTask =
+          () -> {
+            boolean executed =
+                executeIfNotExecuted(taskKey, taskTimeoutInSeconds, task).isExecuted();
+
+            if (!executed) {
+              log.infof(
+                  "Task already in progress on other cluster node. Will wait until it's finished");
+            }
+
+            callback.getTaskCompletedLatch().await(taskTimeoutInSeconds, TimeUnit.SECONDS);
+            return callback.isSuccess();
+          };
+
+      Future<Boolean> future = executor.submit(wrappedTask);
+      callback.setFuture(future);
+    } else {
+      log.infof("Task already in progress on this cluster node. Will wait until it's finished");
+    }
+
+    return callback.getFuture();
+  }
+
+  TaskCallback registerTaskCallback(String taskKey, TaskCallback callback) {
+    TaskCallback existing = taskCallbacks.putIfAbsent(taskKey, callback);
+    return existing == null ? callback : existing;
+  }
+
+  @Override
+  public void close() {}
+}

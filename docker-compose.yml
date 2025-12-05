@@ -1,23 +1,38 @@
-version: '3'
 
 volumes:
   h2_data:
     driver: local
+  redis_data:
+    driver: local
 
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:24.0.3
+    image: quay.io/keycloak/keycloak:26.2.5
     volumes:
       - h2_data:/opt/keycloak/data
-      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT.jar
+      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
     environment:
-      KC_COMMUNITY_JPA_CACHE_ENABLED: true
+      KC_DB_USERNAME: "sa"
+      KC_COMMUNITY_REDIS_CACHE_ENABLED: true
+      KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"
       KC_CACHE: local
-      KC_FEATURES_DISABLED: authorization
       KC_HTTP_RELATIVE_PATH: /auth
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_LOG_LEVEL: INFO,io.phasetwo.keycloak.jpacache:TRACE
+      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
+      JAVA_OPTS: -agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true
     ports:
       - 8080:8080
-    entrypoint: /opt/keycloak/bin/kc.sh start-dev
+      - 8787:8787
+    entrypoint: /opt/keycloak/bin/kc.sh start-dev --verbose
+    depends_on:
+      - redis
+  redis:
+    image: bitnami/redis:latest
+    ports:
+      - "6379:6379"
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - redis_data:/bitnami/redis/data

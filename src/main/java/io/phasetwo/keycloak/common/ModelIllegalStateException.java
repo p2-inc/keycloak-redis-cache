@@ -30,6 +30,6 @@ public class ModelIllegalStateException extends ModelException {
   }
 
   public ModelIllegalStateException(Throwable cause) {
-    super(cause);
+    super(cause.getMessage(), cause);
   }
 }

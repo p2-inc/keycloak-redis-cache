@@ -44,6 +44,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
   @Override
   public void createEnvironment(KeycloakSession s) {
     RealmModel realm = prepareRealm(s, "realm");
+    s.getContext().setRealm(realm);
     this.realmId = realm.getId();
 
     userIds =
@@ -66,6 +67,9 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
 
   @Override
   public void cleanEnvironment(KeycloakSession s) {
+    RealmModel realm = s.realms().getRealm(realmId);
+    s.getContext().setRealm(realm);
+
     new RealmManager(s)
         .removeRealm(
             s.realms().getRealm(realmId)); // See https://issues.redhat.com/browse/KEYCLOAK-17876
@@ -168,6 +172,7 @@ public class OfflineSessionPersistenceTest extends KeycloakModelTest {
         .peek(alterUserSession == null ? us -> {} : us -> alterUserSession.accept(us));
   }
 
+  @SuppressWarnings("deprecation")
   private UserSessionModel createOfflineSession(
       KeycloakSession session, RealmModel realm, String userId, int sessionIndex) {
     final UserModel user = session.users().getUserById(realm, userId);

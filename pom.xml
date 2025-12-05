@@ -37,11 +37,11 @@
   </scm>
 
   <properties>
-    <java.version>17</java.version>
+    <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <main.java.package>io.phasetwo.keycloak.jpacache</main.java.package>
     <junit.version>5.8.2</junit.version>
-    <keycloak.version>24.0.2</keycloak.version>
+    <keycloak.version>26.2.4</keycloak.version>
     <lombok.version>1.18.30</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
     <testcontainers-keycloak.version>1.17.6</testcontainers-keycloak.version>
@@ -68,6 +68,7 @@
     <jdbc.mvn.version>2.2.224</jdbc.mvn.version>
     <jacoco.skip>true</jacoco.skip>
     <smallrye.jandex.version>3.0.5</smallrye.jandex.version>
+    <keycloak.jedis>6.0.0</keycloak.jedis>
     <keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>false</keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>
   </properties>
 
@@ -145,8 +146,11 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.1.2</version>
+        <version>3.5.2</version>
         <configuration>
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>org.jboss.slf4j:slf4j-jboss-logmanager</classpathDependencyExclude>
+          </classpathDependencyExcludes>
           <forkMode>once</forkMode>
 	  <forkCount>0</forkCount>
           <argLine>@{argLine}</argLine>
@@ -156,16 +160,18 @@
           <systemPropertyVariables>
             <!-- keycloak.model.parameters lists parameter classes from
                  org.keycloak.model.parameters package and determine enabled providers -->
-            <kc.community.jpa.cache.enabled>true</kc.community.jpa.cache.enabled>
+            <kc.community.redis.cache.enabled>true</kc.community.redis.cache.enabled>
             <keycloak.model.parameters>JpaCacheParameters</keycloak.model.parameters>
             <keycloak.connectionsJpa.default.driver>${keycloak.connectionsJpa.driver}</keycloak.connectionsJpa.default.driver>
             <keycloak.connectionsJpa.default.database>${keycloak.connectionsJpa.database}</keycloak.connectionsJpa.default.database>
             <keycloak.connectionsJpa.default.user>${keycloak.connectionsJpa.user}</keycloak.connectionsJpa.default.user>
             <keycloak.connectionsJpa.default.password>${keycloak.connectionsJpa.password}</keycloak.connectionsJpa.default.password>
             <keycloak.connectionsJpa.default.url>${keycloak.connectionsJpa.url}</keycloak.connectionsJpa.default.url>
-            <log4j.configuration>file:${project.build.directory}/test-classes/log4j.properties</log4j.configuration> <!-- for the logging to properly work with tests in the 'other' module -->
             <keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>${keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase}</keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>
             <keycloak.profile.feature.authorization>disabled</keycloak.profile.feature.authorization>
+            <keycloak.profile.feature.organization>disabled</keycloak.profile.feature.organization>
+            <keycloak.profile.feature.persistent_user_sessions>disabled</keycloak.profile.feature.persistent_user_sessions>
+            <keycloak.profile.feature.admin_fine_grained_authz>disabled</keycloak.profile.feature.admin_fine_grained_authz>
             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
             <org.jboss.logging.provider>log4j</org.jboss.logging.provider>
             <argLine>-Djava.awt.headless=true ${surefire.memory.settings} ${surefire.system.args}
@@ -199,6 +205,29 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+	<version>3.4.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+	<configuration>
+          <artifactSet>
+            <includes>
+              <include>${project.groupId}:${project.artifactId}</include>
+              <include>redis.clients:jedis</include>
+              <include>org.apache.commons:commons-pool2</include>
+            </includes>
+          </artifactSet>
+          <finalName>${project.artifactId}-${project.version}-withdeps</finalName>
+	</configuration>
       </plugin>
     </plugins>      
   </build>
@@ -265,6 +294,17 @@
       <version>${keycloak.version}</version>
     </dependency>
 
+    <!-- redis dependencies -->
+    <dependency>
+      <groupId>redis.clients</groupId>
+      <artifactId>jedis</artifactId>
+      <version>${keycloak.jedis}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-pool2</artifactId>
+      <version>2.12.1</version>
+    </dependency>
     
     <!-- javax/jakarta apis -->
     <dependency>
@@ -277,6 +317,7 @@
       <groupId>io.smallrye</groupId>
       <artifactId>jandex</artifactId>
       <version>${smallrye.jandex.version}</version>
+      <scope>provided</scope>
     </dependency>
 
     <!-- testing -->
@@ -296,6 +337,18 @@
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
       <version>${testcontainers-keycloak.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.5.16</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.redis</groupId>
+      <artifactId>testcontainers-redis</artifactId>
+      <version>2.2.2</version>
       <scope>test</scope>
     </dependency>
     <dependency>

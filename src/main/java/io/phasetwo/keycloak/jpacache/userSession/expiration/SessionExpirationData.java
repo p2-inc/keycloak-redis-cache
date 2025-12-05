@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.phasetwo.keycloak.jpacache.userSession.expiration;
+
+// package de.arbeitsagentur.opdt.keycloak.cassandra.userSession.expiration;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -82,6 +83,6 @@ public class SessionExpirationData {
   }
 
   private int getEffectiveLifespan(Integer override, int realmLifespan) {
-    return override == null ? realmLifespan : override;
+    return override == null || override > realmLifespan ? realmLifespan : override;
   }
 }
