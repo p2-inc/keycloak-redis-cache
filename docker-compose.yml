@@ -7,6 +7,7 @@ volumes:
 
 services:
   keycloak:
+    #image: quay.io/keycloak/keycloak:26.4.7
     image: quay.io/keycloak/keycloak:26.2.5
     volumes:
       - h2_data:/opt/keycloak/data
@@ -16,18 +17,24 @@ services:
       KC_COMMUNITY_REDIS_CACHE_ENABLED: true
       KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "redis:6379"
       KC_CACHE: local
-      KC_HTTP_RELATIVE_PATH: /auth
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USER: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
       JAVA_OPTS: -agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true
     ports:
       - 8080:8080
       - 8787:8787
-    entrypoint: /opt/keycloak/bin/kc.sh start-dev --verbose
+    entrypoint: ["/opt/keycloak/bin/kc.sh", "start-dev", "--verbose"]
     depends_on:
       - redis
   redis:
+    #image: redis:7
+    #container_name: redis
+    #ports:
+    #  - "6379:6379"
+    #volumes:
+    #  - redis_data:/data
+    #command: ["valkey-server", "--appendonly", "yes"]
     image: bitnami/redis:latest
     ports:
       - "6379:6379"
