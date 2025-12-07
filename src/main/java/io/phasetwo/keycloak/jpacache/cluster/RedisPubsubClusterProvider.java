@@ -14,6 +14,7 @@ import org.keycloak.models.*;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPubSub;
 import redis.clients.jedis.params.SetParams;
 
@@ -23,7 +24,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   public static final String TASK_KEY_PREFIX = "task::";
 
   private final KeycloakSession session;
-  private final Jedis publisher;
+  private final JedisPool publisherFactory;
   private final Jedis subscriber;
   private final int clusterStartupTime;
   private final ExecutorService executor;
@@ -35,12 +36,12 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   public RedisPubsubClusterProvider(
       KeycloakSession session,
-      Jedis publisher,
+      JedisPool publisherFactory,
       Jedis subscriber,
       int clusterStartupTime,
       ExecutorService executor) {
     this.session = session;
-    this.publisher = publisher;
+    this.publisherFactory = publisherFactory;
     this.subscriber = subscriber;
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
@@ -79,7 +80,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void notify(String taskKey, ClusterEvent event, boolean ignoreSender, DCNotify dcNotify) {
-    try {
+    try (Jedis publisher = publisherFactory.getResource()) {
       String serialized =
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
       log.debugf("notify %s: %s", taskKey, serialized);
@@ -120,24 +121,27 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     String lockKey = "kc:cluster:lock:" + taskKey;
     String taskId = KeycloakModelUtils.generateId();
 
-    String lockResult =
-        publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
-    if ("OK".equals(lockResult)) {
-      try {
+    try (Jedis publisher = publisherFactory.getResource()) {
+      String lockResult =
+          publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
+      if ("OK".equals(lockResult)) {
         try {
-          T result = task.call();
-          return ExecutionResult.executed(result);
-        } catch (RuntimeException re) {
-          throw re;
-        } catch (Exception e) {
-          throw new RuntimeException("Unexpected exception when executed task " + taskKey, e);
+          try {
+            T result = task.call();
+            return ExecutionResult.executed(result);
+          } catch (RuntimeException re) {
+            throw re;
+          } catch (Exception e) {
+            throw new RuntimeException("Unexpected exception when executed task " + taskKey, e);
+          }
+        } finally {
+          publisher.del(lockKey);
         }
-      } finally {
-        publisher.del(lockKey);
       }
-    } else {
-      return ExecutionResult.notExecuted();
+    } catch (Exception e) {
+      log.warn("Error getting publisher instance", e);
     }
+    return ExecutionResult.notExecuted();
   }
 
   @Override

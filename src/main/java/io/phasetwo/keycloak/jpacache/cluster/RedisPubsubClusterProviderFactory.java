@@ -16,6 +16,7 @@ import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.params.SetParams;
 
 @JBossLog
@@ -27,7 +28,7 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
 
   private volatile ClusterProvider clusterProvider;
 
-  private Jedis publisher;
+  private JedisPool publisherFactory;
   private Jedis subscriber;
 
   private final ExecutorService localExecutor =
@@ -48,10 +49,10 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
     
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    publisher = redisConnectionProvider.getPool().getResource();
+    publisherFactory = redisConnectionProvider.getPool();
     subscriber = redisConnectionProvider.getPool().getResource();
 
-    int clusterStartTime = initClusterStartTime(session, publisher);
+    int clusterStartTime = initClusterStartTime(session, subscriber);
 
     // TODO what does this do?
     // We need CacheEntryListener for communication within current DC
@@ -60,7 +61,7 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
     
     clusterProvider =
         new RedisPubsubClusterProvider(
-            session, publisher, subscriber, clusterStartTime, localExecutor);
+            session, publisherFactory, subscriber, clusterStartTime, localExecutor);
     return clusterProvider;
   }
 
@@ -93,12 +94,8 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
   public void close() {
     try {
       if (subscriber != null) {
+        log.debug("Closing subscriber");
         subscriber.close();
-      }
-    } catch (Exception ignore) {}
-    try {
-      if (publisher != null) {
-        publisher.close();
       }
     } catch (Exception ignore) {}
   }
