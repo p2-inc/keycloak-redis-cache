@@ -15,7 +15,8 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.Transaction;
-import redis.clients.jedis.params.HSetExParams;
+
+// import redis.clients.jedis.params.HSetExParams;
 
 @JBossLog
 public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
@@ -183,10 +184,17 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
             if (model instanceof ExpirableEntity) {
               ExpirableEntity e = (ExpirableEntity) model;
               log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key, updates);
+              /*
+              // jedis 7.1.0
               txn.hsetex(
                   key,
                   HSetExParams.hSetExParams().pxAt(e.getExpiration()),
                   updates); // todo need to check for expiration null
+              */
+              // jedis 5.1.0
+              txn.hset(key, updates);
+              txn.pexpireAt(key, e.getExpiration());
+
             } else {
               log.tracef("[redis] HSET %s %s", key, updates);
               txn.hset(key, updates);

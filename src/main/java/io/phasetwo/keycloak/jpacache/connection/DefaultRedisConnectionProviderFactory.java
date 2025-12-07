@@ -19,6 +19,9 @@ public class DefaultRedisConnectionProviderFactory
         IsSupported {
   public static final String PROVIDER_ID = "default";
 
+  private static String host;
+  private static int port;
+
   private static JedisPool jedisPool;
 
   @Override
@@ -53,18 +56,17 @@ public class DefaultRedisConnectionProviderFactory
 
   @Override
   public void init(Config.Scope scope) {
-
     log.trace("contactPoint: " + scope.get("contactPoint"));
-    String contactPoints = scope.get("contactPoint");
+    host = scope.get("contactPoint");
 
     log.trace("port: " + scope.get("port"));
-    int port = Integer.parseInt(scope.get("port"));
+    port = Integer.parseInt(scope.get("port"));
     String username = scope.get("username");
     String password = scope.get("password");
 
     int redisTimeout = 2000; // Connection timeout in milliseconds
 
-    initializePool(contactPoints, port, redisTimeout);
+    initializePool(host, port, redisTimeout);
   }
 
   private static JedisPoolConfig buildPoolConfig() {
@@ -74,7 +76,9 @@ public class DefaultRedisConnectionProviderFactory
     poolConfig.setMinIdle(10);
     poolConfig.setMaxWaitMillis(3000);
     poolConfig.setBlockWhenExhausted(true);
-    poolConfig.setTestOnBorrow(true);
+    // may be the issue with the subscriber
+    // poolConfig.setTestOnBorrow(true);
+    poolConfig.setTestOnBorrow(false);
     poolConfig.setTestWhileIdle(true);
     poolConfig.setTimeBetweenEvictionRunsMillis(60000);
     poolConfig.setMinEvictableIdleTimeMillis(300000);

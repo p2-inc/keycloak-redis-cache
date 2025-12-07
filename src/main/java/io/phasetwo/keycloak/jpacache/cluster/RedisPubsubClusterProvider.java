@@ -24,7 +24,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   public static final String TASK_KEY_PREFIX = "task::";
 
   private final KeycloakSession session;
-  private final JedisPool publisherFactory;
+  private final JedisPool jedisPool;
   private final Jedis subscriber;
   private final int clusterStartupTime;
   private final ExecutorService executor;
@@ -36,21 +36,21 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   public RedisPubsubClusterProvider(
       KeycloakSession session,
-      JedisPool publisherFactory,
+      JedisPool jedisPool,
       Jedis subscriber,
       int clusterStartupTime,
       ExecutorService executor) {
     this.session = session;
-    this.publisherFactory = publisherFactory;
+    this.jedisPool = jedisPool;
     this.subscriber = subscriber;
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
 
     executor.submit(
         () -> {
+          Jedis sub = null;
           try {
             log.debugf("creating redis pubsub subscriber for %s", CHANNEL_NAME);
-            log.debugf("PING result = %s", subscriber.ping()); // Should be PONG
             subscriber.subscribe(
                 new JedisPubSub() {
                   @Override
@@ -80,7 +80,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void notify(String taskKey, ClusterEvent event, boolean ignoreSender, DCNotify dcNotify) {
-    try (Jedis publisher = publisherFactory.getResource()) {
+    try (Jedis publisher = jedisPool.getResource()) {
       String serialized =
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
       log.debugf("notify %s: %s", taskKey, serialized);
@@ -121,7 +121,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     String lockKey = "kc:cluster:lock:" + taskKey;
     String taskId = KeycloakModelUtils.generateId();
 
-    try (Jedis publisher = publisherFactory.getResource()) {
+    try (Jedis publisher = jedisPool.getResource()) {
       String lockResult =
           publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
       if ("OK".equals(lockResult)) {

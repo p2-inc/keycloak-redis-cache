@@ -54,7 +54,8 @@ services:
       KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"
       KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"
       KC_CACHE: local
-      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
+      KC_LOG_LEVEL: INFO,io.phasetwo.keycloak.jpacache.cluster:TRACE
+      #KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
     entrypoint: /opt/keycloak/bin/kc.sh --verbose start
     depends_on:
       - cockroach
