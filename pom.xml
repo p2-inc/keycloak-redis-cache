@@ -42,7 +42,7 @@
     <main.java.package>io.phasetwo.keycloak.jpacache</main.java.package>
     <junit.version>5.8.2</junit.version>
     <keycloak.version>26.2.4</keycloak.version>
-    <lombok.version>1.18.30</lombok.version>
+    <lombok.version>1.18.42</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
     <testcontainers-keycloak.version>1.17.6</testcontainers-keycloak.version>
     <ossrh.url>https://s01.oss.sonatype.org</ossrh.url>
@@ -68,7 +68,7 @@
     <jdbc.mvn.version>2.2.224</jdbc.mvn.version>
     <jacoco.skip>true</jacoco.skip>
     <smallrye.jandex.version>3.0.5</smallrye.jandex.version>
-    <keycloak.jedis>6.0.0</keycloak.jedis>
+    <keycloak.jedis>7.1.0</keycloak.jedis>
     <keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>false</keycloak.userSessions.infinispan.preloadOfflineSessionsFromDatabase>
   </properties>
 

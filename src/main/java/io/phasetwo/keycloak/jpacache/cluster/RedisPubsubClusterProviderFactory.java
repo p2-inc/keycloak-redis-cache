@@ -27,6 +27,9 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
 
   private volatile ClusterProvider clusterProvider;
 
+  private Jedis publisher;
+  private Jedis subscriber;
+
   private final ExecutorService localExecutor =
       Executors.newCachedThreadPool(
           r -> {
@@ -40,29 +43,25 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
     return lazyInit(session);
   }
 
-  private ClusterProvider lazyInit(KeycloakSession session) {
+  private synchronized ClusterProvider lazyInit(KeycloakSession session) {
     if (clusterProvider != null) return clusterProvider;
+    
+    RedisConnectionProvider redisConnectionProvider =
+        createProviderCached(session, RedisConnectionProvider.class);
+    publisher = redisConnectionProvider.getPool().getResource();
+    subscriber = redisConnectionProvider.getPool().getResource();
 
-    synchronized (this) {
-      if (clusterProvider != null) return clusterProvider;
+    int clusterStartTime = initClusterStartTime(session, publisher);
 
-      RedisConnectionProvider redisConnectionProvider =
-          createProviderCached(session, RedisConnectionProvider.class);
-      Jedis publisher = redisConnectionProvider.getJedis();
-      Jedis subscriber = redisConnectionProvider.getJedis();
-
-      int clusterStartTime = initClusterStartTime(session, publisher);
-
-      // TODO what does this do?
-      // We need CacheEntryListener for communication within current DC
-      // workCache.addListener(cp.new CacheEntryListener());
-      // logger.debugf("Added listener for infinispan cache: %s", workCache.getName());
-
-      clusterProvider =
-          new RedisPubsubClusterProvider(
-              session, publisher, subscriber, clusterStartTime, localExecutor);
-      return clusterProvider;
-    }
+    // TODO what does this do?
+    // We need CacheEntryListener for communication within current DC
+    // workCache.addListener(cp.new CacheEntryListener());
+    // logger.debugf("Added listener for infinispan cache: %s", workCache.getName());
+    
+    clusterProvider =
+        new RedisPubsubClusterProvider(
+            session, publisher, subscriber, clusterStartTime, localExecutor);
+    return clusterProvider;
   }
 
   protected int initClusterStartTime(KeycloakSession session, Jedis jedis) {
@@ -91,7 +90,18 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
   public void postInit(KeycloakSessionFactory factory) {}
 
   @Override
-  public void close() {}
+  public void close() {
+    try {
+      if (subscriber != null) {
+        subscriber.close();
+      }
+    } catch (Exception ignore) {}
+    try {
+      if (publisher != null) {
+        publisher.close();
+      }
+    } catch (Exception ignore) {}
+  }
 
   @Override
   public String getId() {

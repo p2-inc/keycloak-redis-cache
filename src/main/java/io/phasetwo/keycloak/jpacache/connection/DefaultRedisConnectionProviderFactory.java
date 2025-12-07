@@ -28,6 +28,11 @@ public class DefaultRedisConnectionProviderFactory
       private Jedis resource;
 
       @Override
+      public JedisPool getPool() {
+        return jedisPool;
+      }
+      
+      @Override
       public Jedis getJedis() {
         resource = jedisPool.getResource();
         return resource;
@@ -35,8 +40,13 @@ public class DefaultRedisConnectionProviderFactory
 
       @Override
       public void close() {
-        // we could close the Jedis object here as a single point of failure
-        resource.close();
+        try {
+          if (resource != null) {
+            resource.close();
+          }
+        } catch (Exception e) {
+          log.warn("Error closing jedis resource", e);
+        }
       }
     };
   }

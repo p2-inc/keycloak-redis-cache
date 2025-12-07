@@ -48,16 +48,20 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     executor.submit(
         () -> {
           try {
+            log.debugf("creating redis pubsub subscriber for %s", CHANNEL_NAME);
+            log.debugf("PING result = %s", subscriber.ping()); // Should be PONG
             subscriber.subscribe(
                 new JedisPubSub() {
                   @Override
                   public void onMessage(String channel, String message) {
+                    log.tracef("received pubsub message on %s: %s", channel, message);
                     if (CHANNEL_NAME.equals(channel)) {
                       handleMessage(message);
                     }
                   }
                 },
                 CHANNEL_NAME);
+            log.debugf("redis pubsub subscribe method exited for %s", CHANNEL_NAME);
           } catch (Exception e) {
             log.error("Failed to subscribe to Redis channel", e);
           }
@@ -78,7 +82,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     try {
       String serialized =
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
-      log.debugf("notify %s %s", taskKey, serialized);
+      log.debugf("notify %s: %s", taskKey, serialized);
       publisher.publish(CHANNEL_NAME, serialized);
     } catch (Exception e) {
       log.errorf(e, "Failed to publish cluster event %s", taskKey);
@@ -106,6 +110,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void registerListener(String taskKey, ClusterListener task) {
+    log.debugf("registering cluster listener for %s", taskKey);
     this.listeners.add(taskKey, task);
   }
 
