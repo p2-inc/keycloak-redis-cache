@@ -31,7 +31,7 @@ public class DefaultRedisConnectionProviderFactory
       public JedisPool getPool() {
         return jedisPool;
       }
-      
+
       @Override
       public Jedis getJedis() {
         resource = jedisPool.getResource();
