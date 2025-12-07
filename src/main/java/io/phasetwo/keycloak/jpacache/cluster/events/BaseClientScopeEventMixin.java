@@ -10,6 +10,5 @@ public abstract class BaseClientScopeEventMixin {
   @JsonCreator
   public BaseClientScopeEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "realmId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String realmId) {}
+      @JsonProperty("realmId") @JsonSetter(nulls = Nulls.AS_EMPTY) String realmId) {}
 }

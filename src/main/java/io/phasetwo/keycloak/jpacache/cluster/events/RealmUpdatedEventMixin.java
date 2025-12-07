@@ -10,6 +10,5 @@ public abstract class RealmUpdatedEventMixin {
   @JsonCreator
   public RealmUpdatedEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "realmName", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String realmName) {}
+      @JsonProperty("realmName") @JsonSetter(nulls = Nulls.AS_EMPTY) String realmName) {}
 }

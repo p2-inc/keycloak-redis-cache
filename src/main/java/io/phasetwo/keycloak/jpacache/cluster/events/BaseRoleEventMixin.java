@@ -10,6 +10,5 @@ public abstract class BaseRoleEventMixin {
   @JsonCreator
   public BaseRoleEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "containerId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String containerId) {}
+      @JsonProperty("containerId") @JsonSetter(nulls = Nulls.AS_EMPTY) String containerId) {}
 }

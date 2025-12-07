@@ -10,8 +10,6 @@ public abstract class RoleUpdatedEventMixin {
   @JsonCreator
   public RoleUpdatedEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "containerId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String containerId,
-      @JsonProperty(value = "roleName", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String roleName) {}
+      @JsonProperty("containerId") @JsonSetter(nulls = Nulls.AS_EMPTY) String containerId,
+      @JsonProperty("roleName") @JsonSetter(nulls = Nulls.AS_EMPTY) String roleName) {}
 }

@@ -11,11 +11,9 @@ public abstract class UserFullInvalidationEventMixin {
   @JsonCreator
   public UserFullInvalidationEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "username", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String username,
+      @JsonProperty("username") @JsonSetter(nulls = Nulls.AS_EMPTY) String username,
       @JsonProperty("email") String email,
-      @JsonProperty(value = "realmId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String realmId,
+      @JsonProperty("realmId") @JsonSetter(nulls = Nulls.AS_EMPTY) String realmId,
       @JsonProperty("identityFederationEnabled") boolean identityFederationEnabled,
       @JsonProperty("federatedIdentities") Map<String, String> federatedIdentities) {}
 }

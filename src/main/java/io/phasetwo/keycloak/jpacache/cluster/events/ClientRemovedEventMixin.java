@@ -11,10 +11,8 @@ public abstract class ClientRemovedEventMixin {
   @JsonCreator
   public ClientRemovedEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "realmId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String realmId,
-      @JsonProperty(value = "clientId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String clientId,
-      @JsonProperty(value = "clientRoles", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
+      @JsonProperty("realmId") @JsonSetter(nulls = Nulls.AS_EMPTY) String realmId,
+      @JsonProperty("clientId") @JsonSetter(nulls = Nulls.AS_EMPTY) String clientId,
+      @JsonProperty("clientRoles") @JsonSetter(nulls = Nulls.AS_EMPTY)
           Map<String, String> clientRoles) {}
 }

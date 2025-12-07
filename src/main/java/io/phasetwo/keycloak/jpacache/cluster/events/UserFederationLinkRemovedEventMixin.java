@@ -10,8 +10,7 @@ public abstract class UserFederationLinkRemovedEventMixin {
   @JsonCreator
   public UserFederationLinkRemovedEventMixin(
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
-      @JsonProperty(value = "realmId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String realmId,
+      @JsonProperty("realmId") @JsonSetter(nulls = Nulls.AS_EMPTY) String realmId,
       @JsonProperty("identityProviderId") String identityProviderId,
       @JsonProperty("socialUserId") String socialUserId) {}
 }

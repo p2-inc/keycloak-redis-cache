@@ -12,6 +12,5 @@ public abstract class GroupMovedEventMixin {
       @JsonProperty(value = "id", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY) String id,
       @JsonProperty("newParentId") String newParentId,
       @JsonProperty("oldParentId") String oldParentId,
-      @JsonProperty(value = "realmId", required = true) @JsonSetter(nulls = Nulls.AS_EMPTY)
-          String realmId) {}
+      @JsonProperty("realmId") @JsonSetter(nulls = Nulls.AS_EMPTY) String realmId) {}
 }
