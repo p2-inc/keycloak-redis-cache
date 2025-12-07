@@ -203,7 +203,9 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
           // sadd the secondary indexes
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
             log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
-            txn.sadd(index.getKey(), index.getValue());
+            if (index.getKey() != null && index.getValue() != null) {
+              txn.sadd(index.getKey(), index.getValue());
+            }
           }
           // hdel the values that were unset
           Set<String> deletedFields = model.getDeletedFields();
