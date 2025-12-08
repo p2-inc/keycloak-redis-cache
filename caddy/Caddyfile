@@ -1,0 +1,20 @@
+https://localhost:443 {
+ reverse_proxy {
+        # Upstream Keycloak nodes
+        to keycloak-1:8080
+        to keycloak-2:8080
+
+        # Load balancing policy
+        lb_policy least_conn
+
+        # Health checks (required for real LB)
+        health_uri /realms/master
+        health_interval 10s
+        health_timeout 5s
+
+        # Forward required headers
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-For {remote_host}
+    }
+}
