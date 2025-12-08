@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <main.java.package>io.phasetwo.keycloak.jpacache</main.java.package>
     <junit.version>5.8.2</junit.version>
-    <keycloak.version>26.2.4</keycloak.version>
+    <keycloak.version>26.4.7</keycloak.version>
     <lombok.version>1.18.42</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
     <testcontainers.version>1.21.4</testcontainers.version>
@@ -151,7 +151,6 @@
           <classpathDependencyExcludes>
             <classpathDependencyExclude>org.jboss.slf4j:slf4j-jboss-logmanager</classpathDependencyExclude>
           </classpathDependencyExcludes>
-          <forkMode>once</forkMode>
 	  <forkCount>0</forkCount>
           <argLine>@{argLine}</argLine>
           <runOrder>alphabetical</runOrder>
@@ -323,7 +322,7 @@
     <dependency>
       <groupId>jakarta.persistence</groupId>
       <artifactId>jakarta.persistence-api</artifactId>
-      <version>3.1.0</version>
+      <version>3.2.0</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
