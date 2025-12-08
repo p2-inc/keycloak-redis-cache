@@ -48,10 +48,9 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
     executor.submit(
         () -> {
-          Jedis sub = null;
           try {
             log.debugf("creating redis pubsub subscriber for %s", CHANNEL_NAME);
-            jedisPool.getResource().subscribe(
+            subscriber.subscribe(
                 new JedisPubSub() {
                   @Override
                   public void onMessage(String channel, String message) {

@@ -224,6 +224,7 @@
               <include>${project.groupId}:${project.artifactId}</include>
               <include>redis.clients:jedis</include>
               <include>org.apache.commons:commons-pool2</include>
+              <include>redis.clients.authentication:redis-authx-core</include>
             </includes>
           </artifactSet>
           <finalName>${project.artifactId}-${project.version}-withdeps</finalName>
@@ -299,6 +300,11 @@
       <groupId>redis.clients</groupId>
       <artifactId>jedis</artifactId>
       <version>${keycloak.jedis}</version>
+    </dependency>
+    <dependency>
+        <groupId>redis.clients.authentication</groupId>
+        <artifactId>redis-authx-core</artifactId>
+        <version>0.1.1-beta2</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
