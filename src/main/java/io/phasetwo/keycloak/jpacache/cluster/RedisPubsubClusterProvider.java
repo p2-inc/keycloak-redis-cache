@@ -84,7 +84,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
       log.debugf("notify %s: %s", taskKey, serialized);
       var response = publisher.publish(CHANNEL_NAME, serialized);
-      log.debugf("notification responded with %s", response);
+      log.debugf("notify respinded. Subscribers no.: %s", response);
     } catch (Exception e) {
       log.errorf(e, "Failed to publish cluster event %s", taskKey);
     }
