@@ -48,7 +48,6 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
     executor.submit(
         () -> {
-          Jedis sub = null;
           try {
             log.debugf("creating redis pubsub subscriber for %s", CHANNEL_NAME);
             subscriber.subscribe(
@@ -84,7 +83,8 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
       String serialized =
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
       log.debugf("notify %s: %s", taskKey, serialized);
-      publisher.publish(CHANNEL_NAME, serialized);
+      var response = publisher.publish(CHANNEL_NAME, serialized);
+      log.debugf("notify respinded. Subscribers no.: %s", response);
     } catch (Exception e) {
       log.errorf(e, "Failed to publish cluster event %s", taskKey);
     }
