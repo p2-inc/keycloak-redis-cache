@@ -1,122 +1,19 @@
+volumes:
+  cockroach_data:
+    driver: local
+  caddy_data:
+    driver: local
+  redis_data:
+    driver: local
+
 services:
-
-  postgres:
-    image: 'postgres:16.2-alpine'
-    container_name: 'postgres-eq'
-    ports:
-      - '5432:5432'
-    environment:
-      # Keycloak uses the database named 'keycloak'
-      - 'POSTGRES_DB=keycloak'
-      # Keycloak uses the user 'keycloak'
-      - 'POSTGRES_USER=keycloak'
-      # Keycloak uses the password 'password'
-      - 'POSTGRES_PASSWORD=password'
-      # Root user password
-      - 'POSTGRES_HOST_AUTH_METHOD=trust' # Simplified for development; use a password for production
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    # --- VOLUME ADDED HERE ---
+  cockroach:
+    image: cockroachdb/cockroach:latest
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Mounts the named volume for data persistence
-    # -------------------------
-    networks:
-      - keycloak-net
-
-  keycloak-1:
-    image: 'quay.io/keycloak/keycloak:26.2.5'
-    container_name: 'keycloak-1'
-    environment:
-      - 'KC_BOOTSTRAP_ADMIN_USERNAME=admin'
-      - 'KC_BOOTSTRAP_ADMIN_PASSWORD=admin'
-      # --- PostgreSQL Configuration Update ---
-      - 'KC_DB=postgres'
-      - 'KC_DB_URL_HOST=postgres' # Host is the service name
-      - 'KC_DB_URL_DATABASE=keycloak'
-      - 'KC_DB_URL_PORT=5432'
-      - 'KC_DB_URL_PROPERTIES=?sslmode=disable'
-      - 'KC_DB_USERNAME=keycloak'
-      - 'KC_DB_PASSWORD=password'
-      # ---------------------------------------
-      - 'JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true'
-      - 'KC_HTTP_ENABLED=true'
-      - 'KC_HOSTNAME_STRICT=false'
-      - 'KC_PROXY_HEADERS=xforwarded'
-      - 'KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT=redis'
-      - 'KC_SPI_REDIS_CONNECTION_DEFAULT_PORT=6379'
-      - 'KC_COMMUNITY_REDIS_CACHE_ENABLED=true'
-      - 'KC_LOG_LEVEL=INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE'
+      - cockroach_data:/cockroach/cockroach-data
+    command: start-single-node --insecure
     ports:
-      - '8080:8080'
-      - '8787:8787'
-      - '8443:8443'
-    command: 'start --verbose'
-    depends_on:
-      - 'postgres' # Dependency changed from mysql to postgres
-      - 'redis'
-    volumes:
-      - ./target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
-    networks:
-      - keycloak-net
-
-  keycloak-2:
-    image: 'quay.io/keycloak/keycloak:26.2.5'
-    container_name: 'keycloak-2'
-    environment:
-      - 'KC_BOOTSTRAP_ADMIN_USERNAME=admin'
-      - 'KC_BOOTSTRAP_ADMIN_PASSWORD=admin'
-      # --- PostgreSQL Configuration Update ---
-      - 'KC_DB=postgres'
-      - 'KC_DB_URL_HOST=postgres' # Host is the service name
-      - 'KC_DB_URL_DATABASE=keycloak'
-      - 'KC_DB_URL_PORT=5432'
-      - 'KC_DB_URL_PROPERTIES=?sslmode=disable'
-      - 'KC_DB_USERNAME=keycloak'
-      - 'KC_DB_PASSWORD=password'
-      - 'KC_LOG_LEVEL=info'
-      # ---------------------------------------
-      - 'JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true'
-      - 'KC_HTTP_ENABLED=true'
-      - 'KC_HOSTNAME_STRICT=false'
-      - 'KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT=redis'
-      - 'KC_SPI_REDIS_CONNECTION_DEFAULT_PORT=6379'
-      - 'KC_COMMUNITY_REDIS_CACHE_ENABLED=true'
-      - 'KC_PROXY_HEADERS=xforwarded'
-      - 'KC_LOG_LEVEL=INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE'
-    ports:
-      - '8081:8080'
-      - '8788:8787'
-      - '8444:8443'
-    command: 'start --verbose'
-    depends_on:
-      - 'postgres' # Dependency changed from mysql to postgres
-      - 'redis'
-    volumes:
-      - ./target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
-    networks:
-      - keycloak-net
-
-  caddy:
-    image: caddy:2.4.6-alpine
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Map the local Caddyfile into the container's config path
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
-      # Volume for Caddy's data, including TLS certificates
-      - caddy_data:/data
-    networks:
-      - keycloak-net
-    depends_on:
-      - keycloak-1
-      - keycloak-2
-
+      - 26257:26257
   redis:
     image: bitnami/redis:latest
     ports:
@@ -125,17 +22,52 @@ services:
       - ALLOW_EMPTY_PASSWORD=yes
     volumes:
       - redis_data:/bitnami/redis/data
-    networks:
-      - keycloak-net
-
-networks:
-  keycloak-net:
-    driver: bridge
-
-volumes:
-  caddy_data: {}
-  # --- NEW VOLUME ADDED HERE ---
-  postgres_data: {}
-  # -----------------------------
-  redis_data:
-    driver: local
+  keycloak:
+    image: quay.io/phasetwo/keycloak-crdb:26.2.5
+    deploy:
+      mode: replicated
+      replicas: 2
+    volumes:
+      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
+    environment:
+      KC_HTTP_PORT: 8080
+      KC_DB: cockroach
+      KC_TRANSACTION_XA_ENABLED: false
+      KC_TRANSACTION_JTA_ENABLED: false
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB_URL_PROPERTIES: '?sslmode=disable&useCockroachMetadata=true'
+      KC_DB_URL_HOST: cockroach
+      KC_DB_URL_PORT: 26257
+      KC_DB_URL_DATABASE: defaultdb
+      KC_DB_SCHEMA: public
+      KC_DB_USERNAME: root
+      KC_DB_PASSWORD: ''
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HTTP_ENABLED: 'true'
+      KC_PROXY_HEADERS: 'xforwarded'
+      KC_METRICS_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_METRICS_HISTOGRAMS_ENABLED: 'true'
+      KC_HTTP_METRICS_SLOS: '50,250,500,1000'
+      KC_COMMUNITY_REDIS_CACHE_ENABLED: true
+      KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"
+      KC_CACHE: local
+      KC_LOG_LEVEL: INFO,io.phasetwo.keycloak.jpacache.cluster:TRACE
+      #KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
+    entrypoint: /opt/keycloak/bin/kc.sh --verbose start
+    depends_on:
+      - cockroach
+      - redis
+  caddy:
+    image: caddy:2.4.6-alpine
+    restart: unless-stopped
+    command: caddy reverse-proxy --from https://s01.villamiramar.fr:443 --to http://keycloak:8080
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - caddy_data:/data
+    depends_on:
+      - keycloak
