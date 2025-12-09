@@ -31,7 +31,8 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   private final ConcurrentMultivaluedHashMap<String, ClusterListener> listeners =
       new ConcurrentMultivaluedHashMap<>();
   private final ConcurrentMap<String, TaskCallback> taskCallbacks = new ConcurrentHashMap<>();
-
+  private final ClusterEventListener clusterPubsub;
+  
   private static final String CHANNEL_NAME = "keycloak-cluster";
 
   public RedisPubsubClusterProvider(
@@ -45,22 +46,13 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     this.subscriber = subscriber;
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
-
+    this.clusterPubsub = new ClusterEventListener();
+    
     executor.submit(
         () -> {
           try {
             log.debugf("creating redis pubsub subscriber for %s", CHANNEL_NAME);
-            subscriber.subscribe(
-                new JedisPubSub() {
-                  @Override
-                  public void onMessage(String channel, String message) {
-                    log.tracef("received pubsub message on %s: %s", channel, message);
-                    if (CHANNEL_NAME.equals(channel)) {
-                      handleMessage(message);
-                    }
-                  }
-                },
-                CHANNEL_NAME);
+            subscriber.subscribe(clusterPubsub, CHANNEL_NAME);
             log.debugf("redis pubsub subscribe method exited for %s", CHANNEL_NAME);
           } catch (Exception e) {
             log.error("Failed to subscribe to Redis channel", e);
@@ -68,6 +60,16 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
         });
   }
 
+  private class ClusterEventListener extends JedisPubSub {
+    @Override
+    public void onMessage(String channel, String message) {
+      log.tracef("received pubsub message on %s: %s", channel, message);
+      if (CHANNEL_NAME.equals(channel)) {
+        handleMessage(message);
+      }
+    }
+  }
+  
   @Override
   public int getClusterStartupTime() {
     return clusterStartupTime;
@@ -181,5 +183,14 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    if (clusterPubsub != null && clusterPubsub.isSubscribed()) {
+      log.debugf("Unsubscribing from pubsub %s", CHANNEL_NAME);
+      try {
+        clusterPubsub.unsubscribe();
+      } catch (Exception e) {
+        log.warn("Error unsubscribing from cluster pubsub", e);
+      }
+    }
+  }
 }

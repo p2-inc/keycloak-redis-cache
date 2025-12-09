@@ -1,5 +1,7 @@
 package io.phasetwo.keycloak.jpacache.connection;
 
+import static io.phasetwo.keycloak.jpacache.RedisMetrics.*;
+
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
 import lombok.extern.jbosslog.JBossLog;
@@ -67,8 +69,10 @@ public class DefaultRedisConnectionProviderFactory
     int redisTimeout = 2000; // Connection timeout in milliseconds
 
     initializePool(host, port, redisTimeout);
-  }
 
+    addJedisPoolMetrics(jedisPool);
+  }
+        
   private static JedisPoolConfig buildPoolConfig() {
     final JedisPoolConfig poolConfig = new JedisPoolConfig();
     poolConfig.setMaxTotal(100);

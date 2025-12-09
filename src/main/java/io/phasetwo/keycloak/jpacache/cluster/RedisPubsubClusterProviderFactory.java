@@ -101,9 +101,13 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
     try {
       if (subscriber != null) {
         log.debug("Closing subscriber");
+        if (clusterProvider != null) {
+          clusterProvider.close();
+        }
         subscriber.close();
       }
-    } catch (Exception ignore) {
+    } catch (Exception e) {
+      log.warn("Error closing subscriber", e);
     }
   }
 

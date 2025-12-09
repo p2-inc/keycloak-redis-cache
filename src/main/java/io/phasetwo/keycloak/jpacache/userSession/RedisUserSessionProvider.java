@@ -48,10 +48,10 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     this.clientSessionTrx =
         new RedisChangelogTransaction<>(
-            jedis, new AuthenticatedClientSessionAdapterSupplier(session, jedis));
+            "clientSession", jedis, new AuthenticatedClientSessionAdapterSupplier(session, jedis));
     this.userSessionTrx =
         new RedisChangelogTransaction<>(
-            jedis, new UserSessionAdapterSupplier(session, jedis, this.clientSessionTrx));
+            "userSession", jedis, new UserSessionAdapterSupplier(session, jedis, this.clientSessionTrx));
     session.getTransactionManager().enlistAfterCompletion(this.userSessionTrx);
     session.getTransactionManager().enlistAfterCompletion(this.clientSessionTrx);
   }
