@@ -1,3 +1,4 @@
+/*
 package io.phasetwo.keycloak.compatibility;
 
 import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
@@ -5,8 +6,10 @@ import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
+
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.extern.jbosslog.JBossLog;
 import org.infinispan.Cache;
 import org.infinispan.client.hotrod.RemoteCache;
@@ -21,73 +24,77 @@ import org.keycloak.models.KeycloakSessionFactory;
 @JBossLog
 @AutoService(InfinispanConnectionProviderFactory.class)
 public class NullInfinispanConnectionProviderFactory
-    implements InfinispanConnectionProviderFactory, IsSupported {
+        implements InfinispanConnectionProviderFactory, IsSupported {
 
-  @Override
-  public InfinispanConnectionProvider create(KeycloakSession session) {
-    return createProviderCached(
-        session,
-        InfinispanConnectionProvider.class,
-        () ->
-            new InfinispanConnectionProvider() {
-              @Override
-              public CompletionStage<Void> migrateToProtoStream() {
-                return null;
-              }
+    @Override
+    public InfinispanConnectionProvider create(KeycloakSession session) {
+        return createProviderCached(
+                session,
+                InfinispanConnectionProvider.class,
+                () ->
+                        new InfinispanConnectionProvider() {
+                            @Override
+                            public CompletionStage<Void> migrateToProtoStream() {
+                                return null;
+                            }
 
-              @Override
-              public BlockingManager getBlockingManager() {
-                return null;
-              }
+                            @Override
+                            public BlockingManager getBlockingManager() {
+                                return null;
+                            }
 
-              @Override
-              public ScheduledExecutorService getScheduledExecutor() {
-                return null;
-              }
+                            @Override
+                            public ScheduledExecutorService getScheduledExecutor() {
+                                return null;
+                            }
 
-              @Override
-              public <K, V> Cache<K, V> getCache(String s) {
-                return null;
-              }
+                            @Override
+                            public <K, V> Cache<K, V> getCache(String s) {
+                                return null;
+                            }
 
-              @Override
-              public <K, V> Cache<K, V> getCache(String s, boolean b) {
-                return null;
-              }
+                            @Override
+                            public <K, V> Cache<K, V> getCache(String s, boolean b) {
+                                return null;
+                            }
 
-              @Override
-              public <K, V> RemoteCache<K, V> getRemoteCache(String s) {
-                return null;
-              }
+                            @Override
+                            public <K, V> RemoteCache<K, V> getRemoteCache(String s) {
+                                return null;
+                            }
 
-              @Override
-              public TopologyInfo getTopologyInfo() {
-                return null;
-              }
+                            @Override
+                            public TopologyInfo getTopologyInfo() {
+                                return null;
+                            }
 
-              @Override
-              public void close() {}
-            });
-  }
+                            @Override
+                            public void close() {
+                            }
+                        });
+    }
 
-  @Override
-  public void init(Config.Scope config) {
-    log.info("Infinispan deactivated...");
-  }
+    @Override
+    public void init(Config.Scope config) {
+        log.info("Infinispan deactivated...");
+    }
 
-  @Override
-  public void postInit(KeycloakSessionFactory factory) {}
+    @Override
+    public void postInit(KeycloakSessionFactory factory) {
+    }
 
-  @Override
-  public void close() {}
+    @Override
+    public void close() {
+    }
 
-  @Override
-  public int order() {
-    return PROVIDER_PRIORITY + 1;
-  }
+    @Override
+    public int order() {
+        return PROVIDER_PRIORITY + 1;
+    }
 
-  @Override
-  public String getId() {
-    return "default";
-  }
+    @Override
+    public String getId() {
+        return "default";
+    }
 }
+*/
