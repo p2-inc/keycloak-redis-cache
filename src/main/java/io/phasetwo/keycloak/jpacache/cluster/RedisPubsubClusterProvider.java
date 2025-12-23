@@ -23,9 +23,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   public static final String TASK_KEY_PREFIX = "task::";
 
-  private final KeycloakSession session;
   private final JedisPool jedisPool;
-  private final Jedis subscriber;
   private final int clusterStartupTime;
   private final ExecutorService executor;
   private final ConcurrentMultivaluedHashMap<String, ClusterListener> listeners =
@@ -41,9 +39,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
       Jedis subscriber,
       int clusterStartupTime,
       ExecutorService executor) {
-    this.session = session;
     this.jedisPool = jedisPool;
-    this.subscriber = subscriber;
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
     this.clusterPubsub = new ClusterEventListener();

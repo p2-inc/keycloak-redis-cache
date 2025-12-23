@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.startsWith;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelTest;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import org.junit.Test;
 import org.keycloak.models.*;
@@ -136,7 +135,10 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
           return null;
         });
 
-    inComittedTransaction(
-        (Consumer<KeycloakSession>) session -> session.realms().removeRealm(realmId));
+      inComittedTransaction(session -> {
+          RealmModel realm = session.realms().getRealm(realmId);
+          session.getContext().setRealm(realm);
+          session.realms().removeRealm(realmId);
+      });
   }
 }

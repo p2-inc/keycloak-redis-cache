@@ -13,6 +13,8 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 
+import java.time.Duration;
+
 @JBossLog
 @AutoService(RedisConnectionProviderFactory.class)
 public class DefaultRedisConnectionProviderFactory
@@ -78,14 +80,11 @@ public class DefaultRedisConnectionProviderFactory
     poolConfig.setMaxTotal(100);
     poolConfig.setMaxIdle(50);
     poolConfig.setMinIdle(10);
-    poolConfig.setMaxWaitMillis(3000);
+    poolConfig.setMaxWait(Duration.ofSeconds(10));
     poolConfig.setBlockWhenExhausted(true);
     // may be the issue with the subscriber
-    // poolConfig.setTestOnBorrow(true);
     poolConfig.setTestOnBorrow(false);
     poolConfig.setTestWhileIdle(true);
-    poolConfig.setTimeBetweenEvictionRunsMillis(60000);
-    poolConfig.setMinEvictableIdleTimeMillis(300000);
     poolConfig.setNumTestsPerEvictionRun(-1);
     return poolConfig;
   }
