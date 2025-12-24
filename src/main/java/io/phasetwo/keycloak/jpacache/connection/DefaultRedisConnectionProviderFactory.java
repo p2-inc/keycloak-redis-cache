@@ -2,6 +2,7 @@ package io.phasetwo.keycloak.jpacache.connection;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
+import io.phasetwo.keycloak.jpacache.RedisHashCas;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
@@ -31,7 +32,7 @@ public class DefaultRedisConnectionProviderFactory
       public JedisPool getPool() {
         return jedisPool;
       }
-      
+
       @Override
       public Jedis getJedis() {
         resource = jedisPool.getResource();
@@ -65,6 +66,8 @@ public class DefaultRedisConnectionProviderFactory
     int redisTimeout = 2000; // Connection timeout in milliseconds
 
     initializePool(contactPoints, port, redisTimeout);
+
+    RedisHashCas.initialize(jedisPool);
   }
 
   private static JedisPoolConfig buildPoolConfig() {

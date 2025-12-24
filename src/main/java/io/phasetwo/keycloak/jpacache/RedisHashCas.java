@@ -1,0 +1,90 @@
+package io.phasetwo.keycloak.jpacache;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import lombok.extern.jbosslog.JBossLog;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.Transaction;
+
+/** */
+@JBossLog
+public final class RedisHashCas {
+
+  private static final String LUA_SCRIPT =
+      """
+        local currentVersion = redis.call("HGET", KEYS[1], "version")
+        if not currentVersion then
+          return -1
+        end
+
+        if currentVersion ~= ARGV[1] then
+          return 0
+        end
+
+        if (#ARGV - 2) < 2 then
+          return -2
+        end
+
+        redis.call("HSET", KEYS[1], unpack(ARGV, 3))
+        redis.call("HINCRBY", KEYS[1], "version", 1)
+
+        local expireAt = ARGV[2]
+        if expireAt and expireAt ~= "" and expireAt ~= "0" then
+          redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
+        end
+
+        return 1
+        """;
+
+  private static volatile String scriptSha;
+
+  private final Transaction txn;
+
+  /** Used inside an existing MULTI/EXEC block. */
+  public RedisHashCas(Transaction txn) {
+    this.txn = Objects.requireNonNull(txn, "transaction");
+  }
+
+  /** Initializes the Lua script and caches the SHA. Call once at startup. */
+  public static void initialize(JedisPool pool) {
+    Objects.requireNonNull(pool, "pool");
+
+    try (Jedis jedis = pool.getResource()) {
+      scriptSha = jedis.scriptLoad(LUA_SCRIPT);
+      log.debugf("script initialized: %s", scriptSha);
+    }
+  }
+
+  /**
+   * CAS + HSETEX
+   *
+   * @param key Redis hash key
+   * @param expectedVersion expected version for CAS
+   * @param expireAtMs expiration timestamp (ms since epoch), or null
+   * @param updates map of field/value updates
+   */
+  public void hsetex(
+      String key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
+    if (scriptSha == null) {
+      throw new IllegalStateException("RedisHashCas.initialize() not called");
+    }
+
+    List<String> keys = List.of(key);
+    List<String> args = new ArrayList<>();
+
+    args.add(String.valueOf(expectedVersion));
+    args.add(expireAtMs != null ? String.valueOf(expireAtMs) : "0");
+
+    updates.forEach(
+        (field, value) -> {
+          args.add(field);
+          args.add(value);
+        });
+
+    // Queue Lua execution inside the transaction
+    txn.evalsha(scriptSha, keys, args);
+  }
+}

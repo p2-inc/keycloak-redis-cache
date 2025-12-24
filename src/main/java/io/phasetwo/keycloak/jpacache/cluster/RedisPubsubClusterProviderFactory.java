@@ -45,7 +45,7 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
 
   private synchronized ClusterProvider lazyInit(KeycloakSession session) {
     if (clusterProvider != null) return clusterProvider;
-    
+
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
     publisher = redisConnectionProvider.getPool().getResource();
@@ -57,7 +57,7 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
     // We need CacheEntryListener for communication within current DC
     // workCache.addListener(cp.new CacheEntryListener());
     // logger.debugf("Added listener for infinispan cache: %s", workCache.getName());
-    
+
     clusterProvider =
         new RedisPubsubClusterProvider(
             session, publisher, subscriber, clusterStartTime, localExecutor);
@@ -95,12 +95,14 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
       if (subscriber != null) {
         subscriber.close();
       }
-    } catch (Exception ignore) {}
+    } catch (Exception ignore) {
+    }
     try {
       if (publisher != null) {
         publisher.close();
       }
-    } catch (Exception ignore) {}
+    } catch (Exception ignore) {
+    }
   }
 
   @Override

@@ -6,5 +6,6 @@ import redis.clients.jedis.JedisPool;
 
 public interface RedisConnectionProvider extends Provider {
   JedisPool getPool();
+
   Jedis getJedis();
 }
