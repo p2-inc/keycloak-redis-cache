@@ -1,0 +1,74 @@
+volumes:
+  cockroach_data:
+    driver: local
+  caddy_data:
+    driver: local
+  redis_data:
+    driver: local
+
+services:
+  cockroach:
+    image: cockroachdb/cockroach:latest
+    volumes:
+      - cockroach_data:/cockroach/cockroach-data
+    command: start-single-node --insecure
+    ports:
+      - 26257:26257
+  redis:
+    image: bitnami/redis:latest
+    ports:
+      - "6379:6379"
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - redis_data:/bitnami/redis/data
+  keycloak:
+    image: quay.io/phasetwo/keycloak-crdb:26.2.5
+    deploy:
+      mode: replicated
+      replicas: 2
+    volumes:
+      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
+    environment:
+      KC_HTTP_PORT: 8080
+      KC_DB: cockroach
+      KC_TRANSACTION_XA_ENABLED: false
+      KC_TRANSACTION_JTA_ENABLED: false
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB_URL_PROPERTIES: '?sslmode=disable&useCockroachMetadata=true'
+      KC_DB_URL_HOST: cockroach
+      KC_DB_URL_PORT: 26257
+      KC_DB_URL_DATABASE: defaultdb
+      KC_DB_SCHEMA: public
+      KC_DB_USERNAME: root
+      KC_DB_PASSWORD: ''
+      KC_HOSTNAME_STRICT: 'false'
+      KC_HTTP_ENABLED: 'true'
+      KC_PROXY_HEADERS: 'xforwarded'
+      KC_METRICS_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_METRICS_HISTOGRAMS_ENABLED: 'true'
+      KC_HTTP_METRICS_SLOS: '50,250,500,1000'
+      KC_COMMUNITY_REDIS_CACHE_ENABLED: true
+      KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"
+      KC_CACHE: local
+      KC_LOG_LEVEL: INFO,io.phasetwo.keycloak.jpacache.cluster:TRACE
+      #KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
+    entrypoint: /opt/keycloak/bin/kc.sh --verbose start
+    depends_on:
+      - cockroach
+      - redis
+  caddy:
+    image: caddy:2.4.6-alpine
+    restart: unless-stopped
+    #command: caddy reverse-proxy --from https://s01.villamiramar.fr:443 --to http://keycloak:8080
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - keycloak

@@ -16,6 +16,7 @@ import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.params.SetParams;
 
 @JBossLog
@@ -26,6 +27,9 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
   private static final String CLUSTER_START_KEY = "kc:cluster:startTime";
 
   private volatile ClusterProvider clusterProvider;
+
+  private JedisPool jedisPool;
+  private Jedis subscriber;
 
   private final ExecutorService localExecutor =
       Executors.newCachedThreadPool(
@@ -40,47 +44,49 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
     return lazyInit(session);
   }
 
-  private ClusterProvider lazyInit(KeycloakSession session) {
+  private synchronized ClusterProvider lazyInit(KeycloakSession session) {
     if (clusterProvider != null) return clusterProvider;
 
-    synchronized (this) {
-      if (clusterProvider != null) return clusterProvider;
+    RedisConnectionProvider redisConnectionProvider =
+        createProviderCached(session, RedisConnectionProvider.class);
+    jedisPool = redisConnectionProvider.getPool();
+    subscriber = redisConnectionProvider.getPool().getResource();
 
-      RedisConnectionProvider redisConnectionProvider =
-          createProviderCached(session, RedisConnectionProvider.class);
-      Jedis publisher = redisConnectionProvider.getJedis();
-      Jedis subscriber = redisConnectionProvider.getJedis();
+    int clusterStartTime = initClusterStartTime(session, jedisPool);
 
-      int clusterStartTime = initClusterStartTime(session, publisher);
+    // TODO what does this do?
+    // We need CacheEntryListener for communication within current DC
+    // workCache.addListener(cp.new CacheEntryListener());
+    // logger.debugf("Added listener for infinispan cache: %s", workCache.getName());
 
-      // TODO what does this do?
-      // We need CacheEntryListener for communication within current DC
-      // workCache.addListener(cp.new CacheEntryListener());
-      // logger.debugf("Added listener for infinispan cache: %s", workCache.getName());
-
-      clusterProvider =
-          new RedisPubsubClusterProvider(
-              session, publisher, subscriber, clusterStartTime, localExecutor);
-      return clusterProvider;
-    }
+    clusterProvider =
+        new RedisPubsubClusterProvider(
+            session, jedisPool, subscriber, clusterStartTime, localExecutor);
+    return clusterProvider;
   }
 
-  protected int initClusterStartTime(KeycloakSession session, Jedis jedis) {
-    String existing = jedis.get(CLUSTER_START_KEY);
-    if (existing != null) {
-      int existingClusterStartTime = Integer.parseInt(existing);
-      log.debugf("Loaded cluster start time: %s", Time.toDate(existingClusterStartTime).toString());
-      return existingClusterStartTime;
-    } else {
-      int serverStartTime =
-          (int) (session.getKeycloakSessionFactory().getServerStartupTimestamp() / 1000);
-      String result =
-          jedis.set(CLUSTER_START_KEY, String.valueOf(serverStartTime), SetParams.setParams().nx());
-      if ("OK".equals(result)) {
-        return serverStartTime;
+  protected int initClusterStartTime(KeycloakSession session, JedisPool jedisPool) {
+    try (Jedis jedis = jedisPool.getResource()) {
+      String existing = jedis.get(CLUSTER_START_KEY);
+      if (existing != null) {
+        int existingClusterStartTime = Integer.parseInt(existing);
+        log.debugf(
+            "Loaded cluster start time: %s", Time.toDate(existingClusterStartTime).toString());
+        return existingClusterStartTime;
       } else {
-        return Integer.parseInt(jedis.get(CLUSTER_START_KEY));
+        int serverStartTime =
+            (int) (session.getKeycloakSessionFactory().getServerStartupTimestamp() / 1000);
+        String result =
+            jedis.set(
+                CLUSTER_START_KEY, String.valueOf(serverStartTime), SetParams.setParams().nx());
+        if ("OK".equals(result)) {
+          return serverStartTime;
+        } else {
+          return Integer.parseInt(jedis.get(CLUSTER_START_KEY));
+        }
       }
+    } catch (Exception e) {
+      throw new IllegalStateException("Error getting cluster start time", e);
     }
   }
 
@@ -91,7 +97,19 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
   public void postInit(KeycloakSessionFactory factory) {}
 
   @Override
-  public void close() {}
+  public void close() {
+    try {
+      if (subscriber != null) {
+        log.debug("Closing subscriber");
+        if (clusterProvider != null) {
+          clusterProvider.close();
+        }
+        subscriber.close();
+      }
+    } catch (Exception e) {
+      log.warn("Error closing subscriber", e);
+    }
+  }
 
   @Override
   public String getId() {

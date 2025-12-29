@@ -1,6 +1,5 @@
 package io.phasetwo.keycloak.jpacache.userSession;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -58,16 +57,12 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    b.put(String.format("user-session:realm-index:%s", getRealmId()), getKey().key());
-    b.put(String.format("user-session:user-index:%s", getUserId()), getKey().key());
-    b.put(String.format("user-session:broker-user-index:%s", getBrokerUserId()), getKey().key());
-    b.put(
-        String.format("user-session:broker-session-index:%s", getBrokerSessionId()),
-        getKey().key());
+    siPut(b, "user-session:realm-index:%s", getRealmId(), getKey().key());
+    siPut(b, "user-session:user-index:%s", getUserId(), getKey().key());
+    siPut(b, "user-session:broker-user-index:%s", getBrokerUserId(), getKey().key());
+    siPut(b, "user-session:broker-session-index:%s", getBrokerSessionId(), getKey().key());
     String csi = getNote(CORRESPONDING_SESSION_ID);
-    if (!Strings.isNullOrEmpty(csi)) {
-      b.put(String.format("user-session:corresponding-session-index:%s", csi), getKey().key());
-    }
+    siPut(b, "user-session:corresponding-session-index:%s", csi, getKey().key());
     return b.build();
   }
 
