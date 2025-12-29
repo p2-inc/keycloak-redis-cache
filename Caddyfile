@@ -1,0 +1,9 @@
+https://s01.villamiramar.fr {
+    # /q/* → keycloak:9000/*
+    handle_path /q/* {
+        reverse_proxy http://keycloak:9000
+    }
+
+    # Everything else → keycloak:8080
+    reverse_proxy http://keycloak:8080
+}
