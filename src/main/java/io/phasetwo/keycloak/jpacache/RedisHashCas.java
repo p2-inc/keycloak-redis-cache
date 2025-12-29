@@ -15,28 +15,44 @@ public final class RedisHashCas {
 
   private static final String LUA_SCRIPT =
       """
-        local currentVersion = redis.call("HGET", KEYS[1], "version")
-        if not currentVersion then
-          return -1
-        end
+-- KEYS[1] = hash key
+-- ARGV[1] = expected version
+-- ARGV[2] = expiration timestamp in ms (0 or empty = no expiration)
+-- ARGV[3..n] = field/value pairs
 
-        if currentVersion ~= ARGV[1] then
-          return 0
-        end
+local currentVersion = redis.call("HGET", KEYS[1], "version")
 
-        if (#ARGV - 2) < 2 then
-          return -2
-        end
+-- CREATE path
+if not currentVersion then
+   if ARGV[1] ~= "0" then
+      return -1 -- cannot create unless expectedVersion == 0
+   end
+   currentVersion = "0" -- normalize to string
+end
 
-        redis.call("HSET", KEYS[1], unpack(ARGV, 3))
-        redis.call("HINCRBY", KEYS[1], "version", 1)
+-- CAS check
+if currentVersion ~= ARGV[1] then
+   return 0 -- version mismatch
+end
 
-        local expireAt = ARGV[2]
-        if expireAt and expireAt ~= "" and expireAt ~= "0" then
-          redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
-        end
+-- Must have at least one field/value pair
+if (#ARGV - 2) < 2 then
+   return -2
+end
 
-        return 1
+-- Apply updates
+redis.call("HSET", KEYS[1], unpack(ARGV, 3))
+
+-- Increment version
+redis.call("HINCRBY", KEYS[1], "version", 1)
+
+-- Optional expiration
+local expireAt = ARGV[2]
+if expireAt and expireAt ~= "" and expireAt ~= "0" then
+   redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
+end
+
+return 1
         """;
 
   private static volatile String scriptSha;

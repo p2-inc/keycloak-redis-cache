@@ -179,6 +179,10 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         } else if (model.isDirty()) {
           Map<String, String> updates = model.getDirtyFields();
           if (!updates.isEmpty()) {
+
+            //             RedisHashCas cas = new RedisHashCas(txn);
+            // cas.hsetex(key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
+
             // hset the new/changed values
             if (model instanceof ExpirableEntity) {
               ExpirableEntity e = (ExpirableEntity) model;
