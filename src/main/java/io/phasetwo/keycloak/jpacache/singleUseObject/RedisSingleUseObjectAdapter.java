@@ -25,6 +25,7 @@ public class RedisSingleUseObjectAdapter extends MapEntity<SingleUseObjectKey>
   @Override
   public Map<String, String> getSecondaryIndexes() {
     // ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
+    // siPut(b, , getKey().key());
     // b.put(String.format("login-failure:index:%s", getRealmId()), getUserId());
     // return b.build();
     return ImmutableMap.of();

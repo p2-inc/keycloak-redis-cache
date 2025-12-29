@@ -14,6 +14,7 @@ import org.keycloak.models.*;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPubSub;
 import redis.clients.jedis.params.SetParams;
 
@@ -23,44 +24,35 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   public static final String TASK_KEY_PREFIX = "task::";
 
   private final KeycloakSession session;
-  private final Jedis publisher;
+  private final JedisPool jedisPool;
   private final Jedis subscriber;
   private final int clusterStartupTime;
   private final ExecutorService executor;
   private final ConcurrentMultivaluedHashMap<String, ClusterListener> listeners =
       new ConcurrentMultivaluedHashMap<>();
   private final ConcurrentMap<String, TaskCallback> taskCallbacks = new ConcurrentHashMap<>();
-
+  private final ClusterEventListener clusterPubsub;
+  
   private static final String CHANNEL_NAME = "keycloak-cluster";
 
   public RedisPubsubClusterProvider(
       KeycloakSession session,
-      Jedis publisher,
+      JedisPool jedisPool,
       Jedis subscriber,
       int clusterStartupTime,
       ExecutorService executor) {
     this.session = session;
-    this.publisher = publisher;
+    this.jedisPool = jedisPool;
     this.subscriber = subscriber;
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
-
+    this.clusterPubsub = new ClusterEventListener();
+    
     executor.submit(
         () -> {
           try {
             log.debugf("creating redis pubsub subscriber for %s", CHANNEL_NAME);
-            log.debugf("PING result = %s", subscriber.ping()); // Should be PONG
-            subscriber.subscribe(
-                new JedisPubSub() {
-                  @Override
-                  public void onMessage(String channel, String message) {
-                    log.tracef("received pubsub message on %s: %s", channel, message);
-                    if (CHANNEL_NAME.equals(channel)) {
-                      handleMessage(message);
-                    }
-                  }
-                },
-                CHANNEL_NAME);
+            subscriber.subscribe(clusterPubsub, CHANNEL_NAME);
             log.debugf("redis pubsub subscribe method exited for %s", CHANNEL_NAME);
           } catch (Exception e) {
             log.error("Failed to subscribe to Redis channel", e);
@@ -68,6 +60,16 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
         });
   }
 
+  private class ClusterEventListener extends JedisPubSub {
+    @Override
+    public void onMessage(String channel, String message) {
+      log.tracef("received pubsub message on %s: %s", channel, message);
+      if (CHANNEL_NAME.equals(channel)) {
+        handleMessage(message);
+      }
+    }
+  }
+  
   @Override
   public int getClusterStartupTime() {
     return clusterStartupTime;
@@ -79,11 +81,12 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void notify(String taskKey, ClusterEvent event, boolean ignoreSender, DCNotify dcNotify) {
-    try {
+    try (Jedis publisher = jedisPool.getResource()) {
       String serialized =
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
       log.debugf("notify %s: %s", taskKey, serialized);
-      publisher.publish(CHANNEL_NAME, serialized);
+      var response = publisher.publish(CHANNEL_NAME, serialized);
+      log.debugf("notify respinded. Subscribers no.: %s", response);
     } catch (Exception e) {
       log.errorf(e, "Failed to publish cluster event %s", taskKey);
     }
@@ -120,24 +123,27 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     String lockKey = "kc:cluster:lock:" + taskKey;
     String taskId = KeycloakModelUtils.generateId();
 
-    String lockResult =
-        publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
-    if ("OK".equals(lockResult)) {
-      try {
+    try (Jedis publisher = jedisPool.getResource()) {
+      String lockResult =
+          publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
+      if ("OK".equals(lockResult)) {
         try {
-          T result = task.call();
-          return ExecutionResult.executed(result);
-        } catch (RuntimeException re) {
-          throw re;
-        } catch (Exception e) {
-          throw new RuntimeException("Unexpected exception when executed task " + taskKey, e);
+          try {
+            T result = task.call();
+            return ExecutionResult.executed(result);
+          } catch (RuntimeException re) {
+            throw re;
+          } catch (Exception e) {
+            throw new RuntimeException("Unexpected exception when executed task " + taskKey, e);
+          }
+        } finally {
+          publisher.del(lockKey);
         }
-      } finally {
-        publisher.del(lockKey);
       }
-    } else {
-      return ExecutionResult.notExecuted();
+    } catch (Exception e) {
+      log.warn("Error getting publisher instance", e);
     }
+    return ExecutionResult.notExecuted();
   }
 
   @Override
@@ -177,5 +183,14 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    if (clusterPubsub != null && clusterPubsub.isSubscribed()) {
+      log.debugf("Unsubscribing from pubsub %s", CHANNEL_NAME);
+      try {
+        clusterPubsub.unsubscribe();
+      } catch (Exception e) {
+        log.warn("Error unsubscribing from cluster pubsub", e);
+      }
+    }
+  }
 }

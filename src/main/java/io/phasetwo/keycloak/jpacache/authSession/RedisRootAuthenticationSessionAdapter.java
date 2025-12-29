@@ -72,7 +72,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    b.put(String.format("root-auth-session:realm-index:%s", getRealmId()), getKey().key());
+    siPut(b, "root-auth-session:realm-index:%s", getRealmId(), getKey().key());
     return b.build();
   }
 

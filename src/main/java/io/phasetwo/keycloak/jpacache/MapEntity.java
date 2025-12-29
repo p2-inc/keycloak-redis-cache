@@ -1,5 +1,7 @@
 package io.phasetwo.keycloak.jpacache;
 
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.util.AbstractMap;
@@ -241,6 +243,13 @@ public abstract class MapEntity<K extends Key> {
 
   // make this <Key,String>?
   public abstract Map<String, String> getSecondaryIndexes();
+
+  protected static void siPut(
+      ImmutableMap.Builder<String, String> b, String format, String param, String value) {
+    if (!Strings.isNullOrEmpty(param) && value != null) {
+      b.put(String.format(format, param), value);
+    }
+  }
 
   public K getKey() {
     return this.key;

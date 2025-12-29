@@ -22,7 +22,7 @@ public class RedisUserLoginFailureAdapter extends MapEntity<LoginFailureKey>
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    b.put(String.format("login-failure:index:%s", getRealmId()), getUserId());
+    siPut(b, "login-failure:index:%s", getRealmId(), getUserId());
     return b.build();
   }
 

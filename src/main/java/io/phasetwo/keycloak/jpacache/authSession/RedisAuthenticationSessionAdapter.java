@@ -37,7 +37,7 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    b.put(String.format("auth-session:parent:%s", getString("parentId")), getKey().key());
+    siPut(b, "auth-session:parent:%s", getString("parentId"), getKey().key());
     return b.build();
   }
 

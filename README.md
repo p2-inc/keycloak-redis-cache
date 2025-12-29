@@ -57,3 +57,4 @@ TODO build and publish a docker image so it's easier to try.
 Portions of the code are taken from [keycloak](https://github.com/keycloak/keycloak) and the [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension) and those copyrights are held by their respective owners. 
 
 All other documentation, source code and other files in this repository are Copyright 2025 Phase Two, Inc., and are made available under the terms of the included [license](COPYING).
+
