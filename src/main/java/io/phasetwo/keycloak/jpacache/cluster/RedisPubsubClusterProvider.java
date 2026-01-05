@@ -32,7 +32,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
       new ConcurrentMultivaluedHashMap<>();
   private final ConcurrentMap<String, TaskCallback> taskCallbacks = new ConcurrentHashMap<>();
   private final ClusterEventListener clusterPubsub;
-  
+
   private static final String CHANNEL_NAME = "keycloak-cluster";
 
   public RedisPubsubClusterProvider(
@@ -47,7 +47,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
     this.clusterPubsub = new ClusterEventListener();
-    
+
     executor.submit(
         () -> {
           try {
@@ -69,7 +69,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
       }
     }
   }
-  
+
   @Override
   public int getClusterStartupTime() {
     return clusterStartupTime;

@@ -75,7 +75,7 @@ public class DefaultRedisConnectionProviderFactory
 
     addJedisPoolMetrics(jedisPool);
   }
-        
+
   private static JedisPoolConfig buildPoolConfig() {
     final JedisPoolConfig poolConfig = new JedisPoolConfig();
     poolConfig.setMaxTotal(100);

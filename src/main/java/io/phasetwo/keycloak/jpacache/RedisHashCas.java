@@ -101,6 +101,9 @@ return 1
         });
 
     // Queue Lua execution inside the transaction
+    log.tracef(
+        "[redis] (lua CAS version:%d) (exp:%d) HSET %s %s",
+        expectedVersion, expireAtMs, key, updates);
     txn.evalsha(scriptSha, keys, args);
   }
 }

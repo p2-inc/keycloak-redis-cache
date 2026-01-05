@@ -20,7 +20,8 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     this.jedis = jedis;
     this.session = session;
     this.suoTrx =
-        new RedisChangelogTransaction<>("singleUseObject", jedis, new SingleUseObjectAdapterSupplier(session, jedis));
+        new RedisChangelogTransaction<>(
+            "singleUseObject", jedis, new SingleUseObjectAdapterSupplier(session, jedis));
     session.getTransactionManager().enlistAfterCompletion(suoTrx);
   }
 

@@ -5,6 +5,9 @@ import static io.phasetwo.keycloak.jpacache.RedisMetrics.*;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Meter;
+import io.micrometer.core.instrument.Tag;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
 import java.util.Arrays;
@@ -18,11 +21,6 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.Transaction;
-import redis.clients.jedis.params.HSetExParams;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.Tag;
 
 @JBossLog
 public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
@@ -34,17 +32,16 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   private final Jedis jedis;
   private final String cacheName;
   private final Meter.MeterProvider<Counter> counterProvider;
-  
-  public RedisChangelogTransaction(String cacheName, Jedis jedis, AdapterSupplier<K, A> adapterSupplier) {
+
+  public RedisChangelogTransaction(
+      String cacheName, Jedis jedis, AdapterSupplier<K, A> adapterSupplier) {
     this.cacheName = cacheName;
     this.jedis = jedis;
     this.adapterSupplier = adapterSupplier;
     this.counterProvider = getCacheCounterProvider();
   }
 
-  /**
-   * Count an operation in metrics
-   */
+  /** Count an operation in metrics */
   void countOperation(String op) {
     List<Tag> tags = Lists.newArrayList();
     tags.add(Tag.of(CACHE_TAG, cacheName));
@@ -60,7 +57,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   public static final String SREM = "SREM";
   public static final String DEL = "DEL";
   public static final String WATCH = "WATCH";
-  
+
   /**
    * Gets the value if present at the key. Creates a new instance and registers it for saving using
    * the adapter supplier if none is present at the key.
@@ -187,9 +184,10 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         log.trace("nothing to WATCH. skipping transaction...");
         return; // nothing to do?
       } else {
-        log.tracef("[redis] WATCH %s", kw);
-        jedis.watch(kw);
-        countOperation(WATCH);
+        // don't WATCH because of CAS
+        // log.tracef("[redis] WATCH %s", kw);
+        // jedis.watch(kw);
+        // countOperation(WATCH);
       }
 
       // Jedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not need a
@@ -214,29 +212,36 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
           Map<String, String> updates = model.getDirtyFields();
           if (!updates.isEmpty()) {
 
-            //             RedisHashCas cas = new RedisHashCas(txn);
-            // cas.hsetex(key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
+            long expireAtMs = 0L;
 
             // hset the new/changed values
             if (model instanceof ExpirableEntity) {
               ExpirableEntity e = (ExpirableEntity) model;
-              log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key, updates);
+              expireAtMs = e.getExpiration();
+              // log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key,
+              // updates);
               // jedis 7.1.0
+              /*
               txn.hsetex(
                   key,
                   HSetExParams.hSetExParams().pxAt(e.getExpiration()),
                   updates); // todo need to check for expiration null
+              */
               /*
               // jedis 5.1.0
               txn.hset(key, updates);
               txn.pexpireAt(key, e.getExpiration());
               */
-              countOperation(HSETEX);
+              // countOperation(HSETEX);
             } else {
-              log.tracef("[redis] HSET %s %s", key, updates);
-              txn.hset(key, updates);
-              countOperation(HSETEX);
+              // log.tracef("[redis] HSET %s %s", key, updates);
+              // txn.hset(key, updates);
+              // countOperation(HSETEX);
             }
+            // using redis CAS function
+            RedisHashCas cas = new RedisHashCas(txn);
+            cas.hsetex(key, model.getVersion(), expireAtMs, updates);
+            countOperation(HSETEX);
           }
           // sadd the secondary indexes
           for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {

@@ -42,7 +42,8 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
             "authSession", jedis, new AuthenticationSessionAdapterSupplier(session, jedis));
     this.rootSessionTrx =
         new RedisChangelogTransaction<>(
-            "rootAuthSession", jedis,
+            "rootAuthSession",
+            jedis,
             new RootAuthenticationSessionAdapterSupplier(
                 session, jedis, this.authSessionsLimit, this.authSessionTrx));
     session.getTransactionManager().enlistAfterCompletion(this.authSessionTrx);
