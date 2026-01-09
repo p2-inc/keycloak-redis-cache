@@ -823,7 +823,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       boolean offline,
       boolean stateTransient) {
     int timestamp = Time.currentTime();
-    id = id == null ? KeycloakModelUtils.generateId() : id;
+    id = id == null ? (userSessionId + "::" + clientId) : id;
     RedisAuthenticatedClientSessionAdapter entity =
         clientSessionTrx.get(new AuthenticatedClientSessionKey(id));
     // TODO offline?

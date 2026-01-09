@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.startsWith;
 import io.phasetwo.keycloak.jpacache.testsuite.KeycloakModelTest;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import org.junit.Test;
 import org.keycloak.models.*;
@@ -41,8 +40,6 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
   @Override
   public void createEnvironment(KeycloakSession s) {
     RealmModel realm = createRealm(s, "test");
-    s.getContext().setRealm(realm);
-    s.getContext().setRealm(realm);
     s.getContext().setRealm(realm);
     realm.setDefaultRole(
         s.roles().addRealmRole(realm, Constants.DEFAULT_ROLES_ROLE_PREFIX + "-" + realm.getName()));
@@ -136,7 +133,11 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
           return null;
         });
 
-    inComittedTransaction(
-        (Consumer<KeycloakSession>) session -> session.realms().removeRealm(realmId));
+      inComittedTransaction(session -> {
+          RealmModel realm = session.realms().getRealm(realmId);
+          session.getContext().setRealm(realm);
+          session.realms().removeRealm(realmId);
+      });
+
   }
 }
