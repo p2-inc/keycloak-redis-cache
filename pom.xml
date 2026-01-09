@@ -44,7 +44,7 @@
     <keycloak.version>26.2.4</keycloak.version>
     <lombok.version>1.18.42</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
-    <testcontainers-keycloak.version>1.17.6</testcontainers-keycloak.version>
+    <testcontainers.version>1.21.4</testcontainers.version>
     <ossrh.url>https://s01.oss.sonatype.org</ossrh.url>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
@@ -349,7 +349,7 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
-      <version>${testcontainers-keycloak.version}</version>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
