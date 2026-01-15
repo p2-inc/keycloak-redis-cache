@@ -651,7 +651,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     String indexKey = String.format("authenticated-client:client-index:%s", client.getId());
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
-    if (strIds != null && !strIds.isEmpty()) {
+    if (!strIds.isEmpty()) {
       return strIds.stream()
           .map(str -> AuthenticatedClientSessionKey.fromString(str))
           .map(k -> clientSessionTrx.getIfPresent(k))
