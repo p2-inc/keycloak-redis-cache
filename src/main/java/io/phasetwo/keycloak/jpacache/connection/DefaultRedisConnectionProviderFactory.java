@@ -13,6 +13,8 @@ import org.keycloak.provider.EnvironmentDependentProviderFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.RedisClient;
+import redis.clients.jedis.RedisClusterClient;
 
 @JBossLog
 @AutoService(RedisConnectionProviderFactory.class)
