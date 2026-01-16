@@ -319,4 +319,13 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   public void setExpiration(Long expiration) {
     setField("expiration", expiration);
   }
+
+    public RedisAuthenticatedClientSessionAdapter addClientSession(String clientId, RedisAuthenticatedClientSessionAdapter clientSession) {
+        Map<String, AuthenticatedClientSessionModel> acs = getAuthenticatedClientSessions();
+        clientSessionTrx.addForSave(clientSession);
+        acs.put(clientId, clientSession);
+
+        return clientSession;
+    }
 }
+
