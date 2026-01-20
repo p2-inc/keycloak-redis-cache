@@ -102,7 +102,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     }
 
     setClientSessionExpiration(
-        entity, SessionExpirationData.builder().realm(realm).build(), client);
+        entity, SessionExpirationData.builder().realm(realm).build(), client, false);
 
     userSessionEntity.getAuthenticatedClientSessions().put(client.getId(), entity);
     return entity;
@@ -565,7 +565,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
     RedisAuthenticatedClientSessionAdapter clientSessionEntity =
         createAuthenticatedClientSessionInstance(
-            clientSession, true, isTransient(offlineUserSession));
+            clientSession, true, offlineUserSession);
     int currentTime = Time.currentTime();
     clientSessionEntity.setNote(
         AuthenticatedClientSessionModel.STARTED_AT_NOTE, String.valueOf(currentTime));
@@ -577,7 +577,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     setClientSessionExpiration(
         clientSessionEntity,
         SessionExpirationData.builder().realm(realm).build(),
-        clientSession.getClient());
+        clientSession.getClient(),
+            true);
 
     Optional<RedisUserSessionAdapter> userSessionEntity = getOfflineUserSessionEntityStream(realm, offlineUserSession.getId()).findFirst();
     if (userSessionEntity.isPresent()) {
@@ -846,15 +847,15 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   }
 
   private RedisAuthenticatedClientSessionAdapter createAuthenticatedClientSessionInstance(
-      AuthenticatedClientSessionModel clientSession, boolean offline, boolean stateTransient) {
+          AuthenticatedClientSessionModel clientSession, boolean offline, UserSessionModel offlineUserSession) {
     RedisAuthenticatedClientSessionAdapter entity =
         createAuthenticatedClientSessionEntityInstance(
             null,
-            clientSession.getUserSession().getId(),
+            offlineUserSession.getId(),
             clientSession.getRealm().getId(),
             clientSession.getClient().getId(),
             offline,
-            stateTransient);
+            isTransient(offlineUserSession));
     entity.setAction(clientSession.getAction());
     entity.setProtocol(clientSession.getProtocol());
     entity.setNotes(clientSession.getNotes());
