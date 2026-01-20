@@ -626,13 +626,12 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
       if (!strIds.isEmpty()) {
           return strIds.stream()
+                  .filter(strId -> strId.contains("offline"))
                   .map(AuthenticatedClientSessionKey::fromString)
                   .map(clientSessionTrx::getIfPresent)
                   .filter(Objects::nonNull)
                   .filter(c -> c.getRealmId().equals(realm.getId()))
                   .filter(c -> c.getClientUuid().equals(client.getId()))
-                  .map(c -> c.getUserSession())
-                  .filter(a -> a.isOffline())
                   .count();
       }
       return 0;
@@ -651,13 +650,14 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
       return strIds.stream()
+          .filter(strId -> strId.contains("offline"))
           .map(str -> AuthenticatedClientSessionKey.fromString(str))
           .map(k -> clientSessionTrx.getIfPresent(k))
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
-          .map(c -> c.getUserSession())
-          .filter(a -> a.isOffline())
+          .map(c -> userSessionTrx.get(new UserSessionKey(c.getParentId())))
+          .map(redisUserSessionAdapter -> (UserSessionModel)redisUserSessionAdapter)
           .skip(firstResult != null && firstResult > 0 ? firstResult : 0)
           .limit(maxResults != null && maxResults > 0 ? maxResults : Long.MAX_VALUE);
     } else {
@@ -831,7 +831,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       boolean offline,
       boolean stateTransient) {
     int timestamp = Time.currentTime();
-    id = id == null ? (userSessionId + "::" + clientId) : id;
+    id = id == null ? (userSessionId + "::" + clientId) + (offline ?  ":offline" : "") : id;
     RedisAuthenticatedClientSessionAdapter entity =
         clientSessionTrx.get(new AuthenticatedClientSessionKey(id));
     // TODO offline?
