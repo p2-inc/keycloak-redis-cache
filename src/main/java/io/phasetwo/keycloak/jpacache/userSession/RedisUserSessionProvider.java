@@ -21,14 +21,14 @@ import org.keycloak.common.util.Time;
 import org.keycloak.device.DeviceActivityManager;
 import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.AbstractPipeline;
 import redis.clients.jedis.Response;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisUserSessionProvider implements UserSessionProvider {
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
 
   private final RedisChangelogTransaction<UserSessionKey, RedisUserSessionAdapter> userSessionTrx;
   private final RedisChangelogTransaction<
@@ -42,7 +42,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   private final MultivaluedMap<String, RedisUserSessionAdapter> brokerUserIdSessions =
       new ConcurrentMultivaluedHashMap<>();
 
-  public RedisUserSessionProvider(KeycloakSession session, Jedis jedis) {
+  public RedisUserSessionProvider(KeycloakSession session, UnifiedJedis jedis) {
     this.session = session;
     this.jedis = jedis;
 
@@ -250,7 +250,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   private Stream<UserSessionModel> getUserSessionsStreamByIndexKey(
       String[] indexKeys, RealmModel realm, boolean offline) {
     log.debugf("[redis] SMEMBERS %s", indexKeys);
-    Pipeline pipeline = jedis.pipelined();
+    AbstractPipeline pipeline = jedis.pipelined();
     List<Response<Set<String>>> responses = Lists.newArrayList();
     for (String indexKey : indexKeys) {
       responses.add(pipeline.smembers(indexKey));

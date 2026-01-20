@@ -1,11 +1,10 @@
 package io.phasetwo.keycloak.jpacache.connection;
 
 import org.keycloak.provider.Provider;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.UnifiedJedis;
 
 public interface RedisConnectionProvider extends Provider {
-  JedisPool getPool();
+  UnifiedJedis getJedis();
 
-  Jedis getJedis();
+  UnifiedJedis createClient();
 }

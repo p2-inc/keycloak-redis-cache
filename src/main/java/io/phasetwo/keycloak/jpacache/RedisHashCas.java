@@ -5,9 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import lombok.extern.jbosslog.JBossLog;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.Transaction;
+import redis.clients.jedis.AbstractTransaction;
+import redis.clients.jedis.UnifiedJedis;
 
 /** */
 @JBossLog
@@ -57,21 +56,18 @@ return 1
 
   private static volatile String scriptSha;
 
-  private final Transaction txn;
+  private final AbstractTransaction txn;
 
   /** Used inside an existing MULTI/EXEC block. */
-  public RedisHashCas(Transaction txn) {
+  public RedisHashCas(AbstractTransaction txn) {
     this.txn = Objects.requireNonNull(txn, "transaction");
   }
 
   /** Initializes the Lua script and caches the SHA. Call once at startup. */
-  public static void initialize(JedisPool pool) {
-    Objects.requireNonNull(pool, "pool");
-
-    try (Jedis jedis = pool.getResource()) {
-      scriptSha = jedis.scriptLoad(LUA_SCRIPT);
-      log.debugf("script initialized: %s", scriptSha);
-    }
+  public static void initialize(UnifiedJedis client) {
+    Objects.requireNonNull(client, "client");
+    scriptSha = client.scriptLoad(LUA_SCRIPT);
+    log.debugf("script initialized: %s", scriptSha);
   }
 
   /**

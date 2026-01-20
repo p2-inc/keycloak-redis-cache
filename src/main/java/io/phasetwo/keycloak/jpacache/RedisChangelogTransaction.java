@@ -17,10 +17,10 @@ import java.util.Map;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.AbstractPipeline;
+import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.Response;
-import redis.clients.jedis.Transaction;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
@@ -29,12 +29,12 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   private final Map<K, A> cache = Maps.newHashMap();
   private final Map<K, A> toDelete = Maps.newHashMap();
   private final AdapterSupplier<K, A> adapterSupplier;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final String cacheName;
   private final Meter.MeterProvider<Counter> counterProvider;
 
   public RedisChangelogTransaction(
-      String cacheName, Jedis jedis, AdapterSupplier<K, A> adapterSupplier) {
+      String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
     this.cacheName = cacheName;
     this.jedis = jedis;
     this.adapterSupplier = adapterSupplier;
@@ -115,7 +115,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
    */
   public Map<K, A> getAll(Collection<K> keys) {
     if (keys == null || keys.isEmpty()) return Maps.newLinkedHashMap();
-    Pipeline pipeline = jedis.pipelined();
+    AbstractPipeline pipeline = jedis.pipelined();
     Map<K, Response<Map<String, String>>> responses = Maps.newLinkedHashMap();
     Map<K, A> result = Maps.newLinkedHashMap();
 
@@ -190,10 +190,11 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         // countOperation(WATCH);
       }
 
-      // Jedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not need a
+      // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
+      // need a
       // separate Pipeline to reduce round trips inside a MULTI.
       log.tracef("[redis] MULTI");
-      Transaction txn = jedis.multi();
+      AbstractTransaction txn = jedis.multi();
 
       for (A model : cache.values()) {
         String key = model.getKey().key();

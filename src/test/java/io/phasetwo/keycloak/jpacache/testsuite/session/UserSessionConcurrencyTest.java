@@ -133,11 +133,11 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
           return null;
         });
 
-      inComittedTransaction(session -> {
+    inComittedTransaction(
+        session -> {
           RealmModel realm = session.realms().getRealm(realmId);
           session.getContext().setRealm(realm);
           session.realms().removeRealm(realmId);
-      });
-
+        });
   }
 }

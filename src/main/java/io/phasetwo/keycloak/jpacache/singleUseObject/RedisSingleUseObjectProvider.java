@@ -8,15 +8,15 @@ import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.SingleUseObjectProvider;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final RedisChangelogTransaction<SingleUseObjectKey, RedisSingleUseObjectAdapter> suoTrx;
 
-  public RedisSingleUseObjectProvider(KeycloakSession session, Jedis jedis) {
+  public RedisSingleUseObjectProvider(KeycloakSession session, UnifiedJedis jedis) {
     this.jedis = jedis;
     this.session = session;
     this.suoTrx =

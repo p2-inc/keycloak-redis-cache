@@ -3,15 +3,15 @@ package io.phasetwo.keycloak.jpacache.singleUseObject;
 import io.phasetwo.keycloak.jpacache.AdapterSupplier;
 import java.util.Map;
 import org.keycloak.models.KeycloakSession;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 public class SingleUseObjectAdapterSupplier
     implements AdapterSupplier<SingleUseObjectKey, RedisSingleUseObjectAdapter> {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
 
-  public SingleUseObjectAdapterSupplier(KeycloakSession session, Jedis jedis) {
+  public SingleUseObjectAdapterSupplier(KeycloakSession session, UnifiedJedis jedis) {
     this.session = session;
     this.jedis = jedis;
   }

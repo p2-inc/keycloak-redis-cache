@@ -14,14 +14,14 @@ import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.*;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     implements UserSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final RedisChangelogTransaction<
           AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
       clientSessionTrx;
@@ -31,7 +31,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   public RedisUserSessionAdapter(
       KeycloakSession session,
-      Jedis jedis,
+      UnifiedJedis jedis,
       RedisChangelogTransaction<
               AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
           clientSessionTrx,
@@ -41,7 +41,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   public RedisUserSessionAdapter(
       KeycloakSession session,
-      Jedis jedis,
+      UnifiedJedis jedis,
       RedisChangelogTransaction<
               AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
           clientSessionTrx,
