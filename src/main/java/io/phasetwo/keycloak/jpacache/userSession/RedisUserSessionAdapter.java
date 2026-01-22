@@ -79,6 +79,8 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
               .map(str -> AuthenticatedClientSessionKey.fromString(str))
               .map(k -> clientSessionTrx.getIfPresent(k))
               .filter(Objects::nonNull)
+              .filter(this::matchingOfflineFlag)
+              .filter(this::filterAndRemoveClientSessionWithoutClient)
               .collect(
                   Collectors.toMap(
                       RedisAuthenticatedClientSessionAdapter::getClientUuid,
@@ -88,7 +90,18 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     return clientSessions;
   }
 
-  @Override
+  private boolean filterAndRemoveClientSessionWithoutClient(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+      ClientModel client = session.clients().getClientById(redisAuthenticatedClientSessionAdapter.getRealm(), redisAuthenticatedClientSessionAdapter.getClientUuid());
+      return client != null;
+  }
+
+   private boolean matchingOfflineFlag(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+       boolean isClientSessionOffline = redisAuthenticatedClientSessionAdapter.getId().contains("offline");
+
+       return isOffline() == isClientSessionOffline;
+   }
+
+    @Override
   public int getStarted() {
     return getTimestamp();
   }
