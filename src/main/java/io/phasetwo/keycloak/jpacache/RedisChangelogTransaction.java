@@ -178,7 +178,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       keysToWatch.add(model.getKey().key());
     }
 
-    try {
+
       String[] kw = keysToWatch.toArray(new String[0]);
       if (kw == null || kw.length == 0) {
         log.trace("nothing to WATCH. skipping transaction...");
@@ -193,8 +193,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
       // need a
       // separate Pipeline to reduce round trips inside a MULTI.
-      log.tracef("[redis] MULTI");
-      AbstractTransaction txn = jedis.multi();
+        try (AbstractTransaction txn = jedis.multi()) {
 
       for (A model : cache.values()) {
         String key = model.getKey().key();
@@ -281,9 +280,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       if (results == null) {
         throw new IllegalStateException("Redis transaction aborted due to concurrent modification");
       }
-    } finally {
-      // anything to clean up?
-    }
+      }
   }
 
   @Override

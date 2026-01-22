@@ -22,6 +22,7 @@ import org.keycloak.device.DeviceActivityManager;
 import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import redis.clients.jedis.AbstractPipeline;
+import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
@@ -250,29 +251,35 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   private Stream<UserSessionModel> getUserSessionsStreamByIndexKey(
       String[] indexKeys, RealmModel realm, boolean offline) {
     log.debugf("[redis] SMEMBERS %s", indexKeys);
-    AbstractPipeline pipeline = jedis.pipelined();
-    List<Response<Set<String>>> responses = Lists.newArrayList();
-    for (String indexKey : indexKeys) {
-      responses.add(pipeline.smembers(indexKey));
-    }
-    pipeline.sync();
-    Set<String> strIds =
-        responses.stream()
-            .map(Response::get)
-            .filter(Objects::nonNull)
-            .flatMap(Set::stream)
-            .collect(Collectors.toSet());
-    if (strIds != null && !strIds.isEmpty()) {
-      return strIds.stream()
-          .map(UserSessionKey::fromString)
-          .map(userSessionTrx::getIfPresent)
-          .filter(Objects::nonNull)
-          .filter(s -> s.getRealmId().equals(realm.getId()))
-          .filter(s -> offline == s.isOffline())
-          .map(s -> (UserSessionModel) s);
-    } else {
+      try (Pipeline pipeline = (Pipeline) jedis.pipelined()) {
+          List<Response<Set<String>>> responses = Lists.newArrayList();
+
+          for (String indexKey : indexKeys) {
+              responses.add(pipeline.smembers(indexKey));
+          }
+
+          pipeline.sync(); // This executes the batch
+
+          Set<String> strIds = responses.stream()
+                  .map(Response::get)
+                  .filter(Objects::nonNull)
+                  .flatMap(Set::stream)
+                  .collect(Collectors.toSet());
+
+          if (!strIds.isEmpty()) {
+              return strIds.stream()
+                      .map(UserSessionKey::fromString)
+                      .map(userSessionTrx::getIfPresent)
+                      .filter(Objects::nonNull)
+                      .filter(s -> s.getRealmId().equals(realm.getId()))
+                      .filter(s -> offline == s.isOffline())
+                      .map(s -> (UserSessionModel) s);
+          }
+      } catch (Exception e) {
+          log.error("Pipeline failed", e);
+      }
+
       return Stream.empty();
-    }
   }
 
   // xx
