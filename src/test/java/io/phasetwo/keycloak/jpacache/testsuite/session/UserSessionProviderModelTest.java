@@ -1162,7 +1162,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
                       false,
                       "brokerSession",
                       "brokerUserId");
-          s.sessions().createOfflineUserSession(session);
+         UserSessionModel offlineSession = s.sessions().createOfflineUserSession(session);
 
           UserSessionModel currentSession =
               s.sessions().getUserSessionByBrokerSessionId(realm, "brokerSession");
@@ -1177,14 +1177,11 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
           assertThat(brokerSessions.get(0).getBrokerSessionId(), is("brokerSession"));
           assertThat(brokerSessions.get(0).getBrokerUserId(), is("brokerUserId"));
 
-          // xgp - are we supposed to look up the corresponding session? Because the one that has
-          // this
-          // id is not an offline session.
           UserSessionModel sessionByPredicate =
               s.sessions()
                   .getUserSessionWithPredicate(
                       realm,
-                      session.getId(),
+                      offlineSession.getId(),
                       true,
                       s2 -> s2.getBrokerUserId().equals("brokerUserId"));
           assertThat(sessionByPredicate.getBrokerSessionId(), is("brokerSession"));
