@@ -68,7 +68,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public Map<String, AuthenticatedClientSessionModel> getAuthenticatedClientSessions() {
-    if (clientSessionsInitialized) return clientSessions;
+//    if (clientSessionsInitialized) return clientSessions;  -- Not updated correctly. Was affecting testOnClientRemoved
 
     String indexKey = String.format("authenticated-client:parent-index:%s", getId());
     log.debugf("[redis] SMEMBERS %s", indexKey);
@@ -76,8 +76,8 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     if (strIds != null && !strIds.isEmpty()) {
       clientSessions =
           strIds.stream()
-              .map(str -> AuthenticatedClientSessionKey.fromString(str))
-              .map(k -> clientSessionTrx.getIfPresent(k))
+              .map(AuthenticatedClientSessionKey::fromString)
+              .map(clientSessionTrx::getIfPresent)
               .filter(Objects::nonNull)
               .filter(this::matchingOfflineFlag)
               .filter(this::filterAndRemoveClientSessionWithoutClient)
@@ -92,6 +92,8 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   private boolean filterAndRemoveClientSessionWithoutClient(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
       ClientModel client = session.clients().getClientById(redisAuthenticatedClientSessionAdapter.getRealm(), redisAuthenticatedClientSessionAdapter.getClientUuid());
+
+
       return client != null;
   }
 
@@ -332,13 +334,5 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   public void setExpiration(Long expiration) {
     setField("expiration", expiration);
   }
-
-    public RedisAuthenticatedClientSessionAdapter addClientSession(String clientId, RedisAuthenticatedClientSessionAdapter clientSession) {
-        Map<String, AuthenticatedClientSessionModel> acs = getAuthenticatedClientSessions();
-        clientSessionTrx.addForSave(clientSession);
-        acs.put(clientId, clientSession);
-
-        return clientSession;
-    }
 }
 

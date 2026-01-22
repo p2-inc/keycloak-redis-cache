@@ -299,7 +299,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
-          .map(c -> c.getUserSession())
+          .map(RedisAuthenticatedClientSessionAdapter::getUserSession)
+          .filter(Objects::nonNull)
           .filter(a -> !a.isOffline());
     } else {
       return Stream.empty();
@@ -580,13 +581,13 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         clientSession.getClient(),
             true);
 
-    Optional<RedisUserSessionAdapter> userSessionEntity = getOfflineUserSessionEntityStream(realm, offlineUserSession.getId()).findFirst();
-    if (userSessionEntity.isPresent()) {
-        RedisUserSessionAdapter userSession = userSessionEntity.get();
-        String clientId = clientSession.getClient().getId();
-
-        return userSession.addClientSession(clientId, clientSessionEntity);
-    }
+//    Optional<RedisUserSessionAdapter> userSessionEntity = getOfflineUserSessionEntityStream(realm, offlineUserSession.getId()).findFirst();
+//    if (userSessionEntity.isPresent()) {
+//        RedisUserSessionAdapter userSession = userSessionEntity.get();
+//        String clientId = clientSession.getClient().getId();
+//
+//        return userSession.addClientSession(clientId, clientSessionEntity);
+//    }  - Todo: find use case where needed
     return null;
   }
 
