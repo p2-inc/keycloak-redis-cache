@@ -28,6 +28,8 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.sessions.StickySessionEncoderProvider;
 import org.keycloak.sessions.StickySessionEncoderProviderFactory;
 
+import java.util.Objects;
+
 /**
  * Identical with "disabled"-provider from map storage days but without environment dependent
  * activation
@@ -36,32 +38,42 @@ import org.keycloak.sessions.StickySessionEncoderProviderFactory;
 public class DisabledStickySessionEncoderProvider
     implements StickySessionEncoderProviderFactory, StickySessionEncoderProvider, IsSupported {
 
+    private static final char SEPARATOR = '.';
+
   @Override
   public StickySessionEncoderProvider create(KeycloakSession session) {
     return createProviderCached(session, StickySessionEncoderProvider.class, () -> this);
   }
 
-    @Override
-    public String encodeSessionId(String s, String s1) {
-        return "";
-    }
+  @Override
+  public String encodeSessionId(String message, String sessionId) {
+      Objects.requireNonNull(message);
+      String route = sessionIdRoute(sessionId);
+      return route == null ? message : message + SEPARATOR + route;
+  }
 
-    @Override
-    public SessionIdAndRoute decodeSessionIdAndRoute(String s) {
-        return null;
-    }
+  @Override
+  public SessionIdAndRoute decodeSessionIdAndRoute(String encodedSessionId) {
+      int index = encodedSessionId.indexOf(SEPARATOR);
+      int length = encodedSessionId.length();
+      if (index == -1 || index == (length - 1)) {
+          //route not present
+          return new SessionIdAndRoute(encodedSessionId, null);
+      }
+      return new SessionIdAndRoute(encodedSessionId.substring(0, index), encodedSessionId.substring(index + 1, length));
+  }
 
-    @Override
+  @Override
   public boolean shouldAttachRoute() {
     return false;
   }
 
-    @Override
-    public String sessionIdRoute(String s) {
-        return "";
-    }
+  @Override
+  public String sessionIdRoute(String s) {
+      return null;
+  }
 
-    @Override
+  @Override
   public void setShouldAttachRoute(boolean shouldAttachRoute) {}
 
   @Override
