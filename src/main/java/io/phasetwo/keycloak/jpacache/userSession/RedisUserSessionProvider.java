@@ -138,6 +138,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     return authenticatedClientSessionEntity;
   }
 
+
   // xx
   @Override
   public AuthenticatedClientSessionModel getClientSession(
@@ -153,7 +154,20 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     return userSession.getAuthenticatedClientSessionByClient(client.getId());
   }
 
-  // xx
+    @Override
+    public AuthenticatedClientSessionModel getClientSession(UserSessionModel userSession, ClientModel client, boolean offline) {
+        log.tracef(
+                "getClientSession(%s, %s, %b)%s",
+                userSession, client, offline, getShortStackTrace());
+
+        if (userSession == null) {
+            return null;
+        }
+
+        return userSession.getAuthenticatedClientSessionByClient(client.getId());
+    }
+
+    // xx
   @SuppressWarnings("deprecation")
   @Override
   public UserSessionModel createUserSession(

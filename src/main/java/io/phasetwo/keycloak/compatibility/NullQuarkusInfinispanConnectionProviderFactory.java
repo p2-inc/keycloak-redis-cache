@@ -1,3 +1,4 @@
+/*
 package io.phasetwo.keycloak.compatibility;
 
 import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
@@ -91,3 +92,4 @@ public class NullQuarkusInfinispanConnectionProviderFactory
     return "quarkus";
   }
 }
+*/
