@@ -14,6 +14,10 @@ Put simply, the largest operational problem we have with Keycloak among all of o
 
 Furthermore, we've found that running Keycloak at medium to high scale requires, at minimum, using external Infinispan. An Infinispan cluster is hard to operate, even with all of the awesome operators and tools that team has built. And, this configuration for Keycloak and Infinispan is poorly documented and highly complex to get right. Furthermore, upgrading Infinispan itself is a daunting and error-prone task.
 
+This extension attempts to solve the problems of:
+- Failed restarts/updates of Keycloak with embedded Infinispan because of JGroups incompatibility or other shennanigans.
+- Slow startup because of JGroups/Infinispan discovery and rebalance. 
+
 We've also been working on a multi-region, active-active story for Keycloak over the last 3 years since we ported it to run on [CockroachDB](https://quay.io/repository/phasetwo/keycloak-crdb). We think that a combination of that and a flexible cache replacement like Redis could be a great solution.
 
 Most customers are already using Redis or Valkey, or one of the many cloud provider managed solutions. I once asked an interview question that went something like, "Can you suggest the best infrastructure choices to solve ...?". A particularly wise candidate replied, "The infrastructure you're already running".
@@ -63,7 +67,7 @@ TODO build and publish a docker image so it's easier to try.
 ## Details and known issues
 
 - Local caches (e.g. `user`, `realm`, etc.) still use Infinispan internally. Only the distributed caches are replaced.
-- We use a job to expire entries rather than using Redis native TTL. This is because we want it to work with implementations that don't support multi-region expiration (e.g. AWS MemoryDB).
+- ~~We use a job to expire entries rather than using Redis native TTL. This is because we want it to work with implementations that don't support multi-region expiration (e.g. AWS MemoryDB).~~
 - No migration of existing sessions is done.
 - We store both normal and "offline" sessions in the cache. No database persistence is used.
 - `ClusterProvider` implementation uses Redis `PUBSUB`. In the future, we need to add SNS (AWS) or Pub/Sub (GCP) for multi-region. .
@@ -76,4 +80,4 @@ TODO build and publish a docker image so it's easier to try.
 
 Portions of the code are taken from [keycloak](https://github.com/keycloak/keycloak) and the [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension) and those copyrights are held by their respective owners. 
 
-All other documentation, source code and other files in this repository are Copyright 2025 Phase Two, Inc., and are made available under the terms of the included [license](COPYING).
+All other documentation, source code and other files in this repository are Copyright 2026 Phase Two, Inc., and are made available under the terms of the included [license](COPYING).
