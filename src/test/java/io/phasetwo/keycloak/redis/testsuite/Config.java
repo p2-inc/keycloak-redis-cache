@@ -117,10 +117,11 @@ public class Config implements ConfigProvider {
       super(prefix);
     }
 
-    @Override
-    public String get(String key) {
-        return getConfig().get(prefix + key);
-    }
+    //This kills compatibility
+//    @Override
+//    public String get(String key) {
+//        return getConfig().get(prefix + key);
+//    }
 
     @Override
     public String get(String key, String defaultValue) {

@@ -15,6 +15,8 @@ import io.phasetwo.keycloak.redis.userSession.RedisUserSessionProviderFactory;
 import java.util.Set;
 import org.keycloak.authorization.jpa.store.JPAAuthorizationStoreFactory;
 import org.keycloak.broker.provider.IdentityProviderFactory;
+import org.keycloak.cache.DefaultLocalCacheProviderFactory;
+import org.keycloak.cache.LocalCacheSPI;
 import org.keycloak.connections.jpa.*;
 import org.keycloak.connections.jpa.entityprovider.JpaEntitySpi;
 import org.keycloak.connections.jpa.updater.JpaUpdaterProviderFactory;
@@ -111,6 +113,7 @@ public class RedisParameters extends KeycloakModelParameters {
           .add(TracingSpi.class)
           .add(IdentityProviderStorageSpi.class)
           .add(RedisConnectionSpi.class)
+          .add(LocalCacheSPI.class)
           .build();
 
   static final Set<Class<? extends ProviderFactory>> ALLOWED_FACTORIES =
@@ -129,6 +132,7 @@ public class RedisParameters extends KeycloakModelParameters {
           .add(DefaultJpaConnectionProviderFactory.class)
           .add(DefaultPasswordPolicyManagerProviderFactory.class)
           .add(DeviceRepresentationProviderFactoryImpl.class)
+          .add(DefaultLocalCacheProviderFactory.class)
           .add(ForceExpiredPasswordPolicyProviderFactory.class)
           .add(GeneratedAesKeyProviderFactory.class)
           .add(GeneratedEcdsaKeyProviderFactory.class)

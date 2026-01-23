@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.infinispan.distribution.topologyaware.TopologyInfo;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
@@ -59,11 +60,11 @@ public class DefaultRedisConnectionProviderFactory
 
   @Override
   public void init(Config.Scope scope) {
-    String modeValue = scope.get("mode");
+    String modeValue = scope.get("mode", "TopologyInfo.Node");
     mode = parseMode(modeValue);
     log.tracef("mode: %s", mode);
 
-    String nodesValue = scope.get("nodes");
+    String nodesValue = scope.get("nodes", "redis:6379");
     nodes = parseNodes(nodesValue);
     log.tracef("nodes: %s", nodes);
 
