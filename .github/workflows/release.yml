@@ -6,10 +6,10 @@ on:
       - main
 
 env:
-  # Version 26.2.4
+  # Version 26.4.7
   VERSION_MAJOR: 26
-  VERSION_SUBMAJOR: 2
-  VERSION_MINOR: 4
+  VERSION_SUBMAJOR: 4
+  VERSION_MINOR: 7
 
 jobs:
   release-public:
@@ -23,7 +23,7 @@ jobs:
           java-version: "21"
           distribution: adopt
       - name: Build with Maven
-        run: mvn -U --batch-mode package
+        run: mvn -Pci -U --batch-mode package
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
