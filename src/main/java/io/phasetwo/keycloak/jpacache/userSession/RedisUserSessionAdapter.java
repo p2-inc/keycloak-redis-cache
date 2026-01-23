@@ -68,7 +68,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public Map<String, AuthenticatedClientSessionModel> getAuthenticatedClientSessions() {
-    if (clientSessionsInitialized) return clientSessions;
+//    if (clientSessionsInitialized) return clientSessions;  -- Not updated correctly. Was affecting testOnClientRemoved
 
     String indexKey = String.format("authenticated-client:parent-index:%s", getId());
     log.debugf("[redis] SMEMBERS %s", indexKey);
@@ -76,9 +76,11 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     if (strIds != null && !strIds.isEmpty()) {
       clientSessions =
           strIds.stream()
-              .map(str -> AuthenticatedClientSessionKey.fromString(str))
-              .map(k -> clientSessionTrx.getIfPresent(k))
+              .map(AuthenticatedClientSessionKey::fromString)
+              .map(clientSessionTrx::getIfPresent)
               .filter(Objects::nonNull)
+              .filter(this::matchingOfflineFlag)
+              .filter(this::filterAndRemoveClientSessionWithoutClient)
               .collect(
                   Collectors.toMap(
                       RedisAuthenticatedClientSessionAdapter::getClientUuid,
@@ -88,7 +90,20 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     return clientSessions;
   }
 
-  @Override
+  private boolean filterAndRemoveClientSessionWithoutClient(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+      ClientModel client = session.clients().getClientById(redisAuthenticatedClientSessionAdapter.getRealm(), redisAuthenticatedClientSessionAdapter.getClientUuid());
+
+
+      return client != null;
+  }
+
+   private boolean matchingOfflineFlag(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+       boolean isClientSessionOffline = redisAuthenticatedClientSessionAdapter.getId().contains("offline");
+
+       return isOffline() == isClientSessionOffline;
+   }
+
+    @Override
   public int getStarted() {
     return getTimestamp();
   }
@@ -320,3 +335,4 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     setField("expiration", expiration);
   }
 }
+

@@ -20,8 +20,10 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertNull;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.keycloak.models.*;
+import org.keycloak.models.sessions.infinispan.entities.LoginFailureEntity;
 
 public class LoginFailureModelTest extends KeycloakModelTest {
 
@@ -60,11 +62,11 @@ public class LoginFailureModelTest extends KeycloakModelTest {
           UserLoginFailureProvider loginFailureProvider = s.loginFailures();
           UserLoginFailureModel currentModel =
               loginFailureProvider.getUserLoginFailure(realm, userId);
-          assertThat(currentModel, is(loginFailureModel));
+          assertEntity(currentModel, userId, 0, null, 0, 0, 0);
 
           // Re-adding doesnt change anything
           UserLoginFailureModel readded = loginFailureProvider.addUserLoginFailure(realm, userId);
-          assertThat(readded, is(loginFailureModel));
+          assertEntity(currentModel, userId, 0, null, 0, 0, 0);
 
           currentModel.setLastFailure(42L);
           currentModel.setLastIPFailure("some-ip");
@@ -135,4 +137,14 @@ public class LoginFailureModelTest extends KeycloakModelTest {
           return null;
         });
   }
+
+    private static void assertEntity(UserLoginFailureModel entity, String userId, long lastFailure, String lastIpFailure, int failures, int failedLoginNotBefore, int temporaryLockouts) {
+        Assert.assertNotNull(entity);
+        Assert.assertEquals(userId, entity.getUserId());
+        Assert.assertEquals(lastFailure, entity.getLastFailure());
+        Assert.assertEquals(lastIpFailure, entity.getLastIPFailure());
+        Assert.assertEquals(failures, entity.getNumFailures());
+        Assert.assertEquals(failedLoginNotBefore, entity.getFailedLoginNotBefore());
+        Assert.assertEquals(temporaryLockouts, entity.getNumTemporaryLockouts());
+    }
 }

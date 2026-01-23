@@ -203,7 +203,7 @@ public class DefaultRedisConnectionProviderFactory
       return RedisClusterClient.builder()
           .nodes(nodes)
           .clientConfig(clientConfig)
-          .poolConfig(poolConfig)
+          //.poolConfig(poolConfig)
           .build();
     }
 
@@ -214,7 +214,7 @@ public class DefaultRedisConnectionProviderFactory
     return RedisClient.builder()
         .hostAndPort(node)
         .clientConfig(clientConfig)
-        .poolConfig(poolConfig)
+      //  .poolConfig(poolConfig)
         .build();
   }
 
