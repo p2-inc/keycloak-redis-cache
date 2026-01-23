@@ -595,7 +595,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 //
 //        return userSession.addClientSession(clientId, clientSessionEntity);
 //    }  - Todo: find use case where needed
-    return null;
+    return clientSessionEntity;
   }
 
   // xx
@@ -843,11 +843,11 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     id = id == null ? (userSessionId + "::" + clientId) + (offline ?  ":offline" : "") : id;
     RedisAuthenticatedClientSessionAdapter entity =
         clientSessionTrx.get(new AuthenticatedClientSessionKey(id));
-    // TODO offline?
     entity.setRealmId(realmId);
     entity.setClientUuid(clientId);
     entity.setParentId(userSessionId);
     entity.setTimestamp(timestamp);
+    entity.setNotes(new HashMap<>());
     if (stateTransient) {
       clientSessionTrx.addForDelete(entity);
     }
