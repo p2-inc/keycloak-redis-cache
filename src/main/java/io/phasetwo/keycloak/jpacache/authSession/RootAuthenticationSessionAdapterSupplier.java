@@ -4,14 +4,14 @@ import io.phasetwo.keycloak.jpacache.AdapterSupplier;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
 import org.keycloak.models.KeycloakSession;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 public class RootAuthenticationSessionAdapterSupplier
     implements AdapterSupplier<
         RootAuthenticationSessionKey, RedisRootAuthenticationSessionAdapter> {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final int authSessionsLimit;
   private final RedisChangelogTransaction<
           AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
@@ -19,7 +19,7 @@ public class RootAuthenticationSessionAdapterSupplier
 
   public RootAuthenticationSessionAdapterSupplier(
       KeycloakSession session,
-      Jedis jedis,
+      UnifiedJedis jedis,
       int authSessionsLimit,
       RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
           authSessionTrx) {

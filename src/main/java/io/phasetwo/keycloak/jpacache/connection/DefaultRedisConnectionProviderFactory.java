@@ -4,14 +4,24 @@ import static io.phasetwo.keycloak.jpacache.RedisMetrics.*;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
+import io.phasetwo.keycloak.jpacache.RedisHashCas;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.Connection;
+import redis.clients.jedis.DefaultJedisClientConfig;
+import redis.clients.jedis.HostAndPort;
+import redis.clients.jedis.JedisClientConfig;
+import redis.clients.jedis.RedisClient;
+import redis.clients.jedis.RedisClusterClient;
+import redis.clients.jedis.UnifiedJedis;
+import redis.clients.jedis.util.Pool;
 
 @JBossLog
 @AutoService(RedisConnectionProviderFactory.class)
@@ -21,60 +31,58 @@ public class DefaultRedisConnectionProviderFactory
         IsSupported {
   public static final String PROVIDER_ID = "default";
 
-  private static String host;
-  private static int port;
-
-  private static JedisPool jedisPool;
+  private static UnifiedJedis jedisClient;
+  private static RedisMode mode = RedisMode.STANDALONE;
+  private static Set<HostAndPort> nodes = Set.of();
+  private static JedisClientConfig clientConfig;
+  private static GenericObjectPoolConfig<Connection> poolConfig;
 
   @Override
   public RedisConnectionProvider create(KeycloakSession session) {
     return new RedisConnectionProvider() {
-
-      private Jedis resource;
-
       @Override
-      public JedisPool getPool() {
-        return jedisPool;
+      public UnifiedJedis getJedis() {
+        return jedisClient;
       }
 
       @Override
-      public Jedis getJedis() {
-        resource = jedisPool.getResource();
-        return resource;
+      public UnifiedJedis createClient() {
+        return buildClient(mode, nodes, clientConfig, poolConfig);
       }
 
       @Override
       public void close() {
-        try {
-          if (resource != null) {
-            resource.close();
-          }
-        } catch (Exception e) {
-          log.warn("Error closing jedis resource", e);
-        }
+        // Shared client lifecycle is managed by the factory.
       }
     };
   }
 
   @Override
   public void init(Config.Scope scope) {
-    log.trace("contactPoint: " + scope.get("contactPoint"));
-    host = scope.get("contactPoint");
+    String modeValue = scope.get("mode");
+    mode = parseMode(modeValue);
+    log.tracef("mode: %s", mode);
 
-    log.trace("port: " + scope.get("port"));
-    port = Integer.parseInt(scope.get("port"));
+    String nodesValue = scope.get("nodes");
+    nodes = parseNodes(nodesValue);
+    log.tracef("nodes: %s", nodes);
+
     String username = scope.get("username");
     String password = scope.get("password");
 
-    int redisTimeout = 2000; // Connection timeout in milliseconds
+    int redisTimeout = parseTimeoutMillis(scope.get("timeout"));
+    poolConfig = buildPoolConfig();
+    clientConfig = buildClientConfig(username, password, redisTimeout);
 
-    initializePool(host, port, redisTimeout);
+    jedisClient = buildClient(mode, nodes, clientConfig, poolConfig);
 
-    addJedisPoolMetrics(jedisPool);
+    RedisHashCas.initialize(jedisClient);
+
+    addClientMetrics(jedisClient);
   }
-        
-  private static JedisPoolConfig buildPoolConfig() {
-    final JedisPoolConfig poolConfig = new JedisPoolConfig();
+
+  private static GenericObjectPoolConfig<Connection> buildPoolConfig() {
+    final GenericObjectPoolConfig<Connection> poolConfig = new GenericObjectPoolConfig<>();
     poolConfig.setMaxTotal(100);
     poolConfig.setMaxIdle(50);
     poolConfig.setMinIdle(10);
@@ -90,20 +98,130 @@ public class DefaultRedisConnectionProviderFactory
     return poolConfig;
   }
 
-  // Method to get a Jedis instance from the pool
-  public static Jedis getJedis() {
-    if (jedisPool == null) {
-      throw new IllegalStateException("JedisPool not initialized. Call initializePool() first.");
+  public static UnifiedJedis getJedis() {
+    if (jedisClient == null) {
+      throw new IllegalStateException("Redis client not initialized. Call init() first.");
     }
-    return jedisPool.getResource();
+    return jedisClient;
   }
 
-  public static void initializePool(String host, int port, int timeout) {
-    if (jedisPool == null) {
-      JedisPoolConfig poolConfig = buildPoolConfig();
-      jedisPool = new JedisPool(poolConfig, host, port, timeout);
-      log.info("JedisPool initialized successfully for Redis at " + host + ":" + port);
+  private static void addClientMetrics(UnifiedJedis client) {
+    if (client instanceof RedisClient) {
+      Pool<?> pool = ((RedisClient) client).getPool();
+      addJedisPoolMetrics(pool);
+      return;
     }
+    if (client instanceof RedisClusterClient) {
+      RedisClusterClient clusterClient = (RedisClusterClient) client;
+      clusterClient.getClusterNodes().forEach((node, pool) -> addJedisPoolMetrics(pool, node));
+    }
+  }
+
+  private static RedisMode parseMode(String modeValue) {
+    if (modeValue == null || modeValue.isBlank()) {
+      return RedisMode.STANDALONE;
+    }
+    switch (modeValue.trim().toLowerCase(Locale.ROOT)) {
+      case "standalone":
+        return RedisMode.STANDALONE;
+      case "sentinel":
+        return RedisMode.SENTINEL;
+      case "cluster":
+        return RedisMode.CLUSTER;
+      default:
+        log.warnf("Unknown redis mode '%s', defaulting to standalone", modeValue);
+        return RedisMode.STANDALONE;
+    }
+  }
+
+  private static Set<HostAndPort> parseNodes(String nodesValue) {
+    Set<HostAndPort> parsed = new LinkedHashSet<>();
+    if (nodesValue != null && !nodesValue.isBlank()) {
+      String[] entries = nodesValue.split(",");
+      for (String entry : entries) {
+        String trimmed = entry.trim();
+        if (!trimmed.isEmpty()) {
+          parsed.add(HostAndPort.from(trimmed));
+        }
+      }
+    }
+    if (parsed.isEmpty()) {
+      throw new IllegalStateException("No redis nodes configured. Set 'nodes'.");
+    }
+    return parsed;
+  }
+
+  private static int parseTimeoutMillis(String timeoutValue) {
+    if (timeoutValue == null || timeoutValue.isBlank()) {
+      return 2000;
+    }
+    String trimmed = timeoutValue.trim().toLowerCase(Locale.ROOT);
+    try {
+      if (trimmed.endsWith("ms")) {
+        return Integer.parseInt(trimmed.substring(0, trimmed.length() - 2));
+      }
+      if (trimmed.endsWith("s")) {
+        long seconds = Long.parseLong(trimmed.substring(0, trimmed.length() - 1));
+        return (int) Math.min(Integer.MAX_VALUE, seconds * 1000L);
+      }
+      if (trimmed.endsWith("m")) {
+        long minutes = Long.parseLong(trimmed.substring(0, trimmed.length() - 1));
+        return (int) Math.min(Integer.MAX_VALUE, minutes * 60_000L);
+      }
+      if (trimmed.endsWith("h")) {
+        long hours = Long.parseLong(trimmed.substring(0, trimmed.length() - 1));
+        return (int) Math.min(Integer.MAX_VALUE, hours * 3_600_000L);
+      }
+      return Integer.parseInt(trimmed);
+    } catch (NumberFormatException e) {
+      log.warnf("Invalid timeout value '%s', using default 2000ms", timeoutValue);
+      return 2000;
+    }
+  }
+
+  private static JedisClientConfig buildClientConfig(
+      String username, String password, int timeoutMillis) {
+    DefaultJedisClientConfig.Builder builder =
+        DefaultJedisClientConfig.builder()
+            .connectionTimeoutMillis(timeoutMillis)
+            .socketTimeoutMillis(timeoutMillis);
+    if (username != null && !username.isBlank()) {
+      builder.user(username);
+    }
+    if (password != null && !password.isBlank()) {
+      builder.password(password);
+    }
+    return builder.build();
+  }
+
+  private static UnifiedJedis buildClient(
+      RedisMode mode,
+      Set<HostAndPort> nodes,
+      JedisClientConfig clientConfig,
+      GenericObjectPoolConfig<Connection> poolConfig) {
+    if (mode == RedisMode.CLUSTER) {
+      return RedisClusterClient.builder()
+          .nodes(nodes)
+          .clientConfig(clientConfig)
+          //.poolConfig(poolConfig)
+          .build();
+    }
+
+    HostAndPort node = nodes.iterator().next();
+    if (nodes.size() > 1) {
+      log.warnf("Multiple nodes configured for %s; using %s", mode, node);
+    }
+    return RedisClient.builder()
+        .hostAndPort(node)
+        .clientConfig(clientConfig)
+      //  .poolConfig(poolConfig)
+        .build();
+  }
+
+  private enum RedisMode {
+    STANDALONE,
+    SENTINEL,
+    CLUSTER
   }
 
   @Override
@@ -116,9 +234,9 @@ public class DefaultRedisConnectionProviderFactory
 
   @Override
   public void close() {
-    if (jedisPool != null) {
-      jedisPool.close();
-      jedisPool = null;
+    if (jedisClient != null) {
+      jedisClient.close();
+      jedisClient = null;
     }
   }
 }

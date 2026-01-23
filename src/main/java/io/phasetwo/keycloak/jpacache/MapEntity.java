@@ -232,6 +232,15 @@ public abstract class MapEntity<K extends Key> {
     };
   }
 
+  public final Long getVersion() {
+    if (isNull("version")) setVersion(0L); // make sure it's set in all cases;
+    return getLong("version", 0L);
+  }
+
+  public final void setVersion(Long version) {
+    setField("version", version);
+  }
+
   // make this <Key,String>?
   public abstract Map<String, String> getSecondaryIndexes();
 

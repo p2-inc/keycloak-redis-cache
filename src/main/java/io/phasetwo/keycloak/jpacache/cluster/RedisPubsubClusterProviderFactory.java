@@ -15,8 +15,7 @@ import org.keycloak.cluster.ClusterProviderFactory;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.UnifiedJedis;
 import redis.clients.jedis.params.SetParams;
 
 @JBossLog
@@ -28,8 +27,8 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
 
   private volatile ClusterProvider clusterProvider;
 
-  private JedisPool jedisPool;
-  private Jedis subscriber;
+  private UnifiedJedis publisher;
+  private UnifiedJedis subscriber;
 
   private final ExecutorService localExecutor =
       Executors.newCachedThreadPool(
@@ -46,13 +45,13 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
 
   private synchronized ClusterProvider lazyInit(KeycloakSession session) {
     if (clusterProvider != null) return clusterProvider;
-    
+
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    jedisPool = redisConnectionProvider.getPool();
-    subscriber = redisConnectionProvider.getPool().getResource();
+    publisher = redisConnectionProvider.createClient();
+    subscriber = redisConnectionProvider.createClient();
 
-    int clusterStartTime = initClusterStartTime(session, jedisPool);
+    int clusterStartTime = initClusterStartTime(session, publisher);
     // TODO what does this do?
     // We need CacheEntryListener for communication within current DC
     // workCache.addListener(cp.new CacheEntryListener());
@@ -60,13 +59,13 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
 
     clusterProvider =
         new RedisPubsubClusterProvider(
-            session, jedisPool, subscriber, clusterStartTime, localExecutor);
+            session, publisher, subscriber, clusterStartTime, localExecutor);
     return clusterProvider;
   }
 
-  protected int initClusterStartTime(KeycloakSession session, JedisPool jedisPool) {
-    try (Jedis jedis = jedisPool.getResource()) {
-      String existing = jedis.get(CLUSTER_START_KEY);
+  protected int initClusterStartTime(KeycloakSession session, UnifiedJedis client) {
+    try {
+      String existing = client.get(CLUSTER_START_KEY);
       if (existing != null) {
         int existingClusterStartTime = Integer.parseInt(existing);
         log.debugf(
@@ -76,12 +75,12 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
         int serverStartTime =
             (int) (session.getKeycloakSessionFactory().getServerStartupTimestamp() / 1000);
         String result =
-            jedis.set(
+            client.set(
                 CLUSTER_START_KEY, String.valueOf(serverStartTime), SetParams.setParams().nx());
         if ("OK".equals(result)) {
           return serverStartTime;
         } else {
-          return Integer.parseInt(jedis.get(CLUSTER_START_KEY));
+          return Integer.parseInt(client.get(CLUSTER_START_KEY));
         }
       }
     } catch (Exception e) {
@@ -104,6 +103,11 @@ public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory
           clusterProvider.close();
         }
         subscriber.close();
+        subscriber = null;
+      }
+      if (publisher != null) {
+        publisher.close();
+        publisher = null;
       }
     } catch (Exception e) {
       log.warn("Error closing subscriber", e);

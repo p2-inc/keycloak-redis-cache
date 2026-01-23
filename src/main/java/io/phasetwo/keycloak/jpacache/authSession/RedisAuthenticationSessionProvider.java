@@ -15,13 +15,13 @@ import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.sessions.AuthenticationSessionCompoundId;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisAuthenticationSessionProvider implements AuthenticationSessionProvider {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final int authSessionsLimit;
 
   private final RedisChangelogTransaction<
@@ -32,7 +32,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
       authSessionTrx;
 
   public RedisAuthenticationSessionProvider(
-      KeycloakSession session, Jedis jedis, int authSessionsLimit) {
+      KeycloakSession session, UnifiedJedis jedis, int authSessionsLimit) {
     this.session = session;
     this.jedis = jedis;
     this.authSessionsLimit = authSessionsLimit;
@@ -42,7 +42,8 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
             "authSession", jedis, new AuthenticationSessionAdapterSupplier(session, jedis));
     this.rootSessionTrx =
         new RedisChangelogTransaction<>(
-            "rootAuthSession", jedis,
+            "rootAuthSession",
+            jedis,
             new RootAuthenticationSessionAdapterSupplier(
                 session, jedis, this.authSessionsLimit, this.authSessionTrx));
     session.getTransactionManager().enlistAfterCompletion(this.authSessionTrx);

@@ -28,9 +28,10 @@ public class RedisSessionExpiration {
   public static void setClientSessionExpiration(
       RedisAuthenticatedClientSessionAdapter entity,
       SessionExpirationData expirationData,
-      ClientModel client) {
+      ClientModel client,
+      Boolean offline) {
     long timestampMillis = entity.getTimestamp() * 1000L;
-    if (Boolean.TRUE.equals(entity.getUserSession().isOffline())) {
+    if (Boolean.TRUE.equals(offline)) {
       long sessionExpires =
           timestampMillis
               + TimeAdapter.fromSecondsToMilliseconds(

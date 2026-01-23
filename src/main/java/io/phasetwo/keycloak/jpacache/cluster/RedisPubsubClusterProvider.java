@@ -13,9 +13,8 @@ import org.keycloak.common.util.ConcurrentMultivaluedHashMap;
 import org.keycloak.models.*;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.utils.KeycloakModelUtils;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPubSub;
+import redis.clients.jedis.UnifiedJedis;
 import redis.clients.jedis.params.SetParams;
 
 @JBossLog
@@ -24,30 +23,30 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
   public static final String TASK_KEY_PREFIX = "task::";
 
   private final KeycloakSession session;
-  private final JedisPool jedisPool;
-  private final Jedis subscriber;
+  private final UnifiedJedis publisher;
+  private final UnifiedJedis subscriber;
   private final int clusterStartupTime;
   private final ExecutorService executor;
   private final ConcurrentMultivaluedHashMap<String, ClusterListener> listeners =
       new ConcurrentMultivaluedHashMap<>();
   private final ConcurrentMap<String, TaskCallback> taskCallbacks = new ConcurrentHashMap<>();
   private final ClusterEventListener clusterPubsub;
-  
+
   private static final String CHANNEL_NAME = "keycloak-cluster";
 
   public RedisPubsubClusterProvider(
       KeycloakSession session,
-      JedisPool jedisPool,
-      Jedis subscriber,
+      UnifiedJedis publisher,
+      UnifiedJedis subscriber,
       int clusterStartupTime,
       ExecutorService executor) {
     this.session = session;
-    this.jedisPool = jedisPool;
+    this.publisher = publisher;
     this.subscriber = subscriber;
     this.clusterStartupTime = clusterStartupTime;
     this.executor = executor;
     this.clusterPubsub = new ClusterEventListener();
-    
+
     executor.submit(
         () -> {
           try {
@@ -69,7 +68,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
       }
     }
   }
-  
+
   @Override
   public int getClusterStartupTime() {
     return clusterStartupTime;
@@ -81,7 +80,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void notify(String taskKey, ClusterEvent event, boolean ignoreSender, DCNotify dcNotify) {
-    try (Jedis publisher = jedisPool.getResource()) {
+    try {
       String serialized =
           ClusterEventSerializer.serialize(taskKey, List.of(event), ignoreSender, dcNotify);
       log.debugf("notify %s: %s", taskKey, serialized);
@@ -123,7 +122,7 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
     String lockKey = "kc:cluster:lock:" + taskKey;
     String taskId = KeycloakModelUtils.generateId();
 
-    try (Jedis publisher = jedisPool.getResource()) {
+    try {
       String lockResult =
           publisher.set(lockKey, taskId, SetParams.setParams().nx().ex(lifespanSeconds));
       if ("OK".equals(lockResult)) {

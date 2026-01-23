@@ -7,21 +7,22 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserLoginFailureModel;
 import org.keycloak.models.UserLoginFailureProvider;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final KeycloakSession session;
   private final RedisChangelogTransaction<LoginFailureKey, RedisUserLoginFailureAdapter>
       loginFailureTrx;
 
-  public RedisUserLoginFailureProvider(KeycloakSession session, Jedis jedis) {
+  public RedisUserLoginFailureProvider(KeycloakSession session, UnifiedJedis jedis) {
     this.jedis = jedis;
     this.session = session;
     this.loginFailureTrx =
-        new RedisChangelogTransaction<>("loginFailure", jedis, new UserLoginFailureAdapterSupplier(session, jedis));
+        new RedisChangelogTransaction<>(
+            "loginFailure", jedis, new UserLoginFailureAdapterSupplier(session, jedis));
     ;
     session.getTransactionManager().enlistAfterCompletion(loginFailureTrx);
   }

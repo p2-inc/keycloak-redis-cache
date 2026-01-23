@@ -4,20 +4,20 @@ import io.phasetwo.keycloak.jpacache.AdapterSupplier;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
 import org.keycloak.models.KeycloakSession;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 public class UserSessionAdapterSupplier
     implements AdapterSupplier<UserSessionKey, RedisUserSessionAdapter> {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final RedisChangelogTransaction<
           AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
       clientSessionTrx;
 
   public UserSessionAdapterSupplier(
       KeycloakSession session,
-      Jedis jedis,
+      UnifiedJedis jedis,
       RedisChangelogTransaction<
               AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter>
           clientSessionTrx) {

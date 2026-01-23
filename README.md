@@ -25,9 +25,29 @@ Most customers are already using Redis or Valkey, or one of the many cloud provi
 Applies to any deployment type:
 
 - Set `KC_COMMUNITY_REDIS_CACHE_ENABLED=true`
-- Set `KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"`
-- Set `KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"`
+- Set `KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "redis:6379"`
 - Set `KC_CACHE=local`
+
+### Configuration properties
+
+| Property | Description | Example |
+| --- | --- | --- |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_MODE` | Redis topology mode: `standalone`, `sentinel`, or `cluster`. | `standalone` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_NODES` | Comma-delimited list of `host:port` nodes. | `redis-1:6379,redis-2:6379` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_PASSWORD` | Redis password (if required). | `passw0rd` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_TIMEOUT` | Connection/socket timeout (e.g. `2000`, `2s`, `500ms`). | `2s` |
+
+Examples:
+
+```bash
+# Standalone
+KC_SPI_REDIS_CONNECTION_DEFAULT_MODE=standalone
+KC_SPI_REDIS_CONNECTION_DEFAULT_NODES=redis:6379
+
+# Cluster
+KC_SPI_REDIS_CONNECTION_DEFAULT_MODE=cluster
+KC_SPI_REDIS_CONNECTION_DEFAULT_NODES=redis-1:6379,redis-2:6379,redis-3:6379
+```
 
 ### Build and install
 
@@ -57,4 +77,3 @@ TODO build and publish a docker image so it's easier to try.
 Portions of the code are taken from [keycloak](https://github.com/keycloak/keycloak) and the [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension) and those copyrights are held by their respective owners. 
 
 All other documentation, source code and other files in this repository are Copyright 2025 Phase Two, Inc., and are made available under the terms of the included [license](COPYING).
-

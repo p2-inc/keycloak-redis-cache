@@ -24,14 +24,14 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthenticationSessionKey>
     implements RootAuthenticationSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
   private final int authSessionsLimit;
   private final RedisChangelogTransaction<
           AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
@@ -42,7 +42,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   public RedisRootAuthenticationSessionAdapter(
       KeycloakSession session,
-      Jedis jedis,
+      UnifiedJedis jedis,
       int authSessionsLimit,
       RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
           authSessionTrx,
@@ -53,7 +53,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   public RedisRootAuthenticationSessionAdapter(
       KeycloakSession session,
-      Jedis jedis,
+      UnifiedJedis jedis,
       int authSessionsLimit,
       RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
           authSessionTrx,

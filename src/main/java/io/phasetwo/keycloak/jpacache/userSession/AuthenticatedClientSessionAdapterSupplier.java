@@ -3,16 +3,16 @@ package io.phasetwo.keycloak.jpacache.userSession;
 import io.phasetwo.keycloak.jpacache.AdapterSupplier;
 import java.util.Map;
 import org.keycloak.models.KeycloakSession;
-import redis.clients.jedis.Jedis;
+import redis.clients.jedis.UnifiedJedis;
 
 public class AuthenticatedClientSessionAdapterSupplier
     implements AdapterSupplier<
         AuthenticatedClientSessionKey, RedisAuthenticatedClientSessionAdapter> {
 
   private final KeycloakSession session;
-  private final Jedis jedis;
+  private final UnifiedJedis jedis;
 
-  public AuthenticatedClientSessionAdapterSupplier(KeycloakSession session, Jedis jedis) {
+  public AuthenticatedClientSessionAdapterSupplier(KeycloakSession session, UnifiedJedis jedis) {
     this.session = session;
     this.jedis = jedis;
   }
