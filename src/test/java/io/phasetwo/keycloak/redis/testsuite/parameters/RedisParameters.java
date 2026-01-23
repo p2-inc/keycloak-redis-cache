@@ -173,6 +173,7 @@ public class RedisParameters extends KeycloakModelParameters {
           .add(ValidatorFactory.class)
           .add(NoopTracingProviderFactory.class)
           .add(JpaIdentityProviderStorageProviderFactory.class)
+          .add(RegistrationWebOriginsPolicyFactory.class)
           .build();
 
   public RedisParameters() {

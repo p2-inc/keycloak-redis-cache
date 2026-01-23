@@ -117,11 +117,15 @@ public class Config implements ConfigProvider {
       super(prefix);
     }
 
-    //This kills compatibility
-//    @Override
-//    public String get(String key) {
-//        return getConfig().get(prefix + key);
-//    }
+    //This killed compatibility
+    @Override
+    public String get(String key) {
+        String v = System.getProperty(this.prefix + key, (String)null);
+        if (v == null || v.isEmpty()) {
+            v = System.getProperty("keycloak." + prefix + key);
+        }
+        return v != null && !v.isEmpty() ? v : null;
+    }
 
     @Override
     public String get(String key, String defaultValue) {
