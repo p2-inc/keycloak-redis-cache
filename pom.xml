@@ -58,6 +58,7 @@
     <surefire.system.args></surefire.system.args>
 
     <!-- testing property vars -->
+    <logback.configurationFile>${basedir}/src/test/resources/logback-test.xml</logback.configurationFile>
     <keycloak.connectionsJpa.driver>org.h2.Driver</keycloak.connectionsJpa.driver>
     <keycloak.connectionsJpa.database>keycloak</keycloak.connectionsJpa.database>
     <keycloak.connectionsJpa.user>sa</keycloak.connectionsJpa.user>
@@ -176,6 +177,7 @@
             <argLine>-Djava.awt.headless=true ${surefire.memory.settings} ${surefire.system.args}
             -Duser.language=en -Duser.region=US
             </argLine>
+	    <logback.configurationFile>${logback.configurationFile}</logback.configurationFile>
           </systemPropertyVariables>
           <properties>
             <property>
@@ -231,6 +233,15 @@
       </plugin>
     </plugins>      
   </build>
+
+  <profiles>
+    <profile>
+      <id>ci</id>
+      <properties>
+	<logback.configurationFile>${basedir}/src/test/resources/logback-ci.xml</logback.configurationFile>
+      </properties>
+    </profile>
+  </profiles>
 
   <dependencies>
     <!-- annotation processing helpers for logging and services -->
