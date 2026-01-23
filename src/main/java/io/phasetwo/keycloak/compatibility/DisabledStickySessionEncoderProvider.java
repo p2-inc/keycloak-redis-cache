@@ -41,22 +41,27 @@ public class DisabledStickySessionEncoderProvider
     return createProviderCached(session, StickySessionEncoderProvider.class, () -> this);
   }
 
-  @Override
-  public String encodeSessionId(String sessionId) {
-    return sessionId;
-  }
+    @Override
+    public String encodeSessionId(String s, String s1) {
+        return "";
+    }
 
-  @Override
-  public String decodeSessionId(String encodedSessionId) {
-    return encodedSessionId;
-  }
+    @Override
+    public SessionIdAndRoute decodeSessionIdAndRoute(String s) {
+        return null;
+    }
 
-  @Override
+    @Override
   public boolean shouldAttachRoute() {
     return false;
   }
 
-  @Override
+    @Override
+    public String sessionIdRoute(String s) {
+        return "";
+    }
+
+    @Override
   public void setShouldAttachRoute(boolean shouldAttachRoute) {}
 
   @Override
