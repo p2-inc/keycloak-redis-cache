@@ -13,7 +13,7 @@ import redis.clients.jedis.UnifiedJedis;
 public final class RedisHashCas {
 
   private static final String LUA_SCRIPT =
-      """
+"""
 -- KEYS[1] = hash key
 -- ARGV[1] = expected version
 -- ARGV[2] = expiration timestamp in ms (0 or empty = no expiration)
