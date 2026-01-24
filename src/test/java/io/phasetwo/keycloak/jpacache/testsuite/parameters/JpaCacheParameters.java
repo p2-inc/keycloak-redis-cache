@@ -81,7 +81,7 @@ public class JpaCacheParameters extends KeycloakModelParameters {
   public static final Boolean START_CONTAINER =
       Boolean.valueOf(System.getProperty("keycloak.testsuite.start-redis-container", "true"));
 
-  private final GenericContainer redisContainer = createRedisContainer();
+  private final GenericContainer redisContainer = createValkeyContainer();
 
   static final Set<Class<? extends Spi>> ALLOWED_SPIS =
       ImmutableSet.<Class<? extends Spi>>builder()
@@ -244,9 +244,9 @@ public class JpaCacheParameters extends KeycloakModelParameters {
     }
   }
 
-  private static GenericContainer createRedisContainer() {
-    return new GenericContainer<>("bitnami/redis") // "bitnami/redis-cluster -somehow test cluster
-        .withEnv("ALLOW_EMPTY_PASSWORD", "yes")
+  private static GenericContainer createValkeyContainer() {
+    return new GenericContainer<>("valkey/valkey:8.1.5")
+        .withCommand("valkey-server", "--appendonly", "no", "--protected-mode", "no")
         .withExposedPorts(6379);
   }
 }
