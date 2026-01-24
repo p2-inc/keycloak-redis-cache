@@ -223,7 +223,9 @@ public class JpaCacheParameters extends KeycloakModelParameters {
 
     cf.spi(RedisConnectionSpi.NAME)
         .provider(DefaultRedisConnectionProviderFactory.PROVIDER_ID)
-        .config("nodes", START_CONTAINER
+        .config(
+            "nodes",
+            START_CONTAINER
                 ? redisContainer.getHost() + ":" + redisContainer.getMappedPort(6379)
                 : "redis:6379");
   }

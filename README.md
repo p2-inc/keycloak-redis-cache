@@ -38,6 +38,8 @@ Applies to any deployment type:
 | --- | --- | --- |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_MODE` | Redis topology mode: `standalone`, `sentinel`, or `cluster`. | `standalone` |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_NODES` | Comma-delimited list of `host:port` nodes. | `redis-1:6379,redis-2:6379` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_SSL` | If it is an SSL connection. | `false` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_USERNAME` | Redis username (if required). | `someuser` |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_PASSWORD` | Redis password (if required). | `passw0rd` |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_TIMEOUT` | Connection/socket timeout (e.g. `2000`, `2s`, `500ms`). | `2s` |
 

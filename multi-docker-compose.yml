@@ -23,10 +23,10 @@ services:
     volumes:
       - redis_data:/bitnami/redis/data
   keycloak:
-    image: quay.io/phasetwo/keycloak-crdb:26.2.5
+    image: quay.io/phasetwo/keycloak-crdb:26.4.7
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
     volumes:
       - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
     environment:
@@ -51,8 +51,8 @@ services:
       KC_HTTP_METRICS_HISTOGRAMS_ENABLED: 'true'
       KC_HTTP_METRICS_SLOS: '50,250,500,1000'
       KC_COMMUNITY_REDIS_CACHE_ENABLED: true
-      KC_SPI_REDIS_CONNECTION_DEFAULT_CONTACT_POINT: "redis"
-      KC_SPI_REDIS_CONNECTION_DEFAULT_PORT: "6379"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_MODE: "standalone"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "redi1s:6379"
       KC_CACHE: local
       KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
     entrypoint: /opt/keycloak/bin/kc.sh --verbose start

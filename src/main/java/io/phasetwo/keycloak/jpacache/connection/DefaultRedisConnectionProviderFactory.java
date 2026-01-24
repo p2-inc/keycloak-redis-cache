@@ -67,12 +67,15 @@ public class DefaultRedisConnectionProviderFactory
     nodes = parseNodes(nodesValue);
     log.tracef("nodes: %s", nodes);
 
+    boolean useSsl = scope.getBoolean("ssl", false);
+    log.tracef("useSsl: %b", useSsl);
+
     String username = scope.get("username");
     String password = scope.get("password");
 
     int redisTimeout = parseTimeoutMillis(scope.get("timeout"));
     poolConfig = buildPoolConfig();
-    clientConfig = buildClientConfig(username, password, redisTimeout);
+    clientConfig = buildClientConfig(useSsl, username, password, redisTimeout);
 
     jedisClient = buildClient(mode, nodes, clientConfig, poolConfig);
 
@@ -180,11 +183,14 @@ public class DefaultRedisConnectionProviderFactory
   }
 
   private static JedisClientConfig buildClientConfig(
-      String username, String password, int timeoutMillis) {
+      boolean useSsl, String username, String password, int timeoutMillis) {
     DefaultJedisClientConfig.Builder builder =
         DefaultJedisClientConfig.builder()
             .connectionTimeoutMillis(timeoutMillis)
             .socketTimeoutMillis(timeoutMillis);
+    if (useSsl) {
+      builder.ssl(useSsl);
+    }
     if (username != null && !username.isBlank()) {
       builder.user(username);
     }
@@ -203,7 +209,7 @@ public class DefaultRedisConnectionProviderFactory
       return RedisClusterClient.builder()
           .nodes(nodes)
           .clientConfig(clientConfig)
-          //.poolConfig(poolConfig)
+          // .poolConfig(poolConfig)
           .build();
     }
 
@@ -214,7 +220,7 @@ public class DefaultRedisConnectionProviderFactory
     return RedisClient.builder()
         .hostAndPort(node)
         .clientConfig(clientConfig)
-      //  .poolConfig(poolConfig)
+        //  .poolConfig(poolConfig)
         .build();
   }
 

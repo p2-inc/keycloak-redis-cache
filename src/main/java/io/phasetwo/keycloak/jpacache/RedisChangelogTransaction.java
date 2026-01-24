@@ -178,22 +178,21 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       keysToWatch.add(model.getKey().key());
     }
 
+    String[] kw = keysToWatch.toArray(new String[0]);
+    if (kw == null || kw.length == 0) {
+      log.trace("nothing to WATCH. skipping transaction...");
+      return; // nothing to do?
+    } else {
+      // don't WATCH because of CAS
+      // log.tracef("[redis] WATCH %s", kw);
+      // jedis.watch(kw);
+      // countOperation(WATCH);
+    }
 
-      String[] kw = keysToWatch.toArray(new String[0]);
-      if (kw == null || kw.length == 0) {
-        log.trace("nothing to WATCH. skipping transaction...");
-        return; // nothing to do?
-      } else {
-        // don't WATCH because of CAS
-        // log.tracef("[redis] WATCH %s", kw);
-        // jedis.watch(kw);
-        // countOperation(WATCH);
-      }
-
-      // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
-      // need a
-      // separate Pipeline to reduce round trips inside a MULTI.
-        try (AbstractTransaction txn = jedis.multi()) {
+    // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
+    // need a
+    // separate Pipeline to reduce round trips inside a MULTI.
+    try (AbstractTransaction txn = jedis.multi()) {
 
       for (A model : cache.values()) {
         String key = model.getKey().key();
@@ -280,7 +279,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       if (results == null) {
         throw new IllegalStateException("Redis transaction aborted due to concurrent modification");
       }
-      }
+    }
   }
 
   @Override

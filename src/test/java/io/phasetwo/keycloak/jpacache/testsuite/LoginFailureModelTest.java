@@ -23,7 +23,6 @@ import static org.junit.Assert.assertNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.keycloak.models.*;
-import org.keycloak.models.sessions.infinispan.entities.LoginFailureEntity;
 
 public class LoginFailureModelTest extends KeycloakModelTest {
 
@@ -138,13 +137,20 @@ public class LoginFailureModelTest extends KeycloakModelTest {
         });
   }
 
-    private static void assertEntity(UserLoginFailureModel entity, String userId, long lastFailure, String lastIpFailure, int failures, int failedLoginNotBefore, int temporaryLockouts) {
-        Assert.assertNotNull(entity);
-        Assert.assertEquals(userId, entity.getUserId());
-        Assert.assertEquals(lastFailure, entity.getLastFailure());
-        Assert.assertEquals(lastIpFailure, entity.getLastIPFailure());
-        Assert.assertEquals(failures, entity.getNumFailures());
-        Assert.assertEquals(failedLoginNotBefore, entity.getFailedLoginNotBefore());
-        Assert.assertEquals(temporaryLockouts, entity.getNumTemporaryLockouts());
-    }
+  private static void assertEntity(
+      UserLoginFailureModel entity,
+      String userId,
+      long lastFailure,
+      String lastIpFailure,
+      int failures,
+      int failedLoginNotBefore,
+      int temporaryLockouts) {
+    Assert.assertNotNull(entity);
+    Assert.assertEquals(userId, entity.getUserId());
+    Assert.assertEquals(lastFailure, entity.getLastFailure());
+    Assert.assertEquals(lastIpFailure, entity.getLastIPFailure());
+    Assert.assertEquals(failures, entity.getNumFailures());
+    Assert.assertEquals(failedLoginNotBefore, entity.getFailedLoginNotBefore());
+    Assert.assertEquals(temporaryLockouts, entity.getNumTemporaryLockouts());
+  }
 }
