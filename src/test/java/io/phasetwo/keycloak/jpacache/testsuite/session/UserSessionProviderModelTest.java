@@ -1492,7 +1492,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
     if (entity1 == null || entity2 == null) return false;
 
     return // Objects.equals(entity1.getRealm().getId(), entity2.getRealm().getId()) && - session
-           // closed exception
+    // closed exception
     Objects.equals(entity1.getLoginUsername(), entity2.getLoginUsername())
         && Objects.equals(entity1.getBrokerUserId(), entity2.getBrokerUserId())
         && Objects.equals(entity1.getIpAddress(), entity2.getIpAddress())

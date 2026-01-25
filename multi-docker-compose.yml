@@ -3,7 +3,7 @@ volumes:
     driver: local
   caddy_data:
     driver: local
-  redis_data:
+  valkey_data:
     driver: local
 
 services:
@@ -14,19 +14,21 @@ services:
     command: start-single-node --insecure
     ports:
       - 26257:26257
-  redis:
-    image: bitnami/redis:latest
+  valkey:
+    image: valkey/valkey:8.1.5
     ports:
       - "6379:6379"
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
+    command: >
+      valkey-server
+      --appendonly yes
+      --protected-mode no
     volumes:
-      - redis_data:/bitnami/redis/data
+      - valkey_data:/data
   keycloak:
     image: quay.io/phasetwo/keycloak-crdb:26.4.7
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 3
     volumes:
       - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
     environment:
@@ -52,13 +54,13 @@ services:
       KC_HTTP_METRICS_SLOS: '50,250,500,1000'
       KC_COMMUNITY_REDIS_CACHE_ENABLED: true
       KC_SPI_REDIS_CONNECTION_DEFAULT_MODE: "standalone"
-      KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "redi1s:6379"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "valkey:6379"
       KC_CACHE: local
       KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
     entrypoint: /opt/keycloak/bin/kc.sh --verbose start
     depends_on:
       - cockroach
-      - redis
+      - valkey
   caddy:
     image: caddy:2.4.6-alpine
     restart: unless-stopped
