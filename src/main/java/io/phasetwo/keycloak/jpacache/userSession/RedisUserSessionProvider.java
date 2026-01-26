@@ -312,10 +312,10 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     String indexKey = String.format("authenticated-client:client-index:%s", client.getId());
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
-    if (strIds != null && !strIds.isEmpty()) {
+    if (!strIds.isEmpty()) {
       return strIds.stream()
-          .map(str -> AuthenticatedClientSessionKey.fromString(str))
-          .map(k -> clientSessionTrx.getIfPresent(k))
+          .map(AuthenticatedClientSessionKey::fromString)
+          .map(clientSessionTrx::getIfPresent)
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
@@ -412,8 +412,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   public Map<String, Long> getActiveClientSessionStats(RealmModel realm, boolean offline) {
     log.tracef("getActiveClientSessionStats(%s, %s)%s", realm, offline, getShortStackTrace());
     String indexKey = String.format("user-session:realm-index:%s", realm.getId());
-    return getUserSessionsStreamByIndexKey(indexKey, realm, false)
-        .filter(s -> s.isOffline() == offline)
+    return getUserSessionsStreamByIndexKey(indexKey, realm, offline)
         .map(this::getUserSessionAdapter)
         .filter(Objects::nonNull)
         .map(UserSessionModel::getAuthenticatedClientSessions)
@@ -673,8 +672,8 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     if (!strIds.isEmpty()) {
       return strIds.stream()
           .filter(strId -> strId.contains("offline"))
-          .map(str -> AuthenticatedClientSessionKey.fromString(str))
-          .map(k -> clientSessionTrx.getIfPresent(k))
+          .map(AuthenticatedClientSessionKey::fromString)
+          .map(clientSessionTrx::getIfPresent)
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
