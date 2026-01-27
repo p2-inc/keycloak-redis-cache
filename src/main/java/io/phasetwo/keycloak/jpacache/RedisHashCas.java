@@ -93,7 +93,7 @@ return 1
     updates.forEach(
         (field, value) -> {
           args.add(field);
-          args.add(value);
+          args.add(value == null ? MapEntity. NULL_SENTINEL :value);
         });
 
     // Queue Lua execution inside the transaction

@@ -42,6 +42,9 @@ public class RedisSingleUseObjectAdapter extends MapEntity<SingleUseObjectKey>
   public void replaceNotes(Map<String, String> notes) {
     Map<String, String> ns = getNotes();
     ns.clear();
+    if (notes == null){
+        return;
+    }
     for (Map.Entry<String, String> note : notes.entrySet()) {
       ns.put(note.getKey(), note.getValue() == null ? NULL_SENTINEL : note.getValue());
     }
