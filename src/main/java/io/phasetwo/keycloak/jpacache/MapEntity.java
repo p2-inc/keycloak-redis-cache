@@ -80,7 +80,7 @@ public abstract class MapEntity<K extends Key> {
   public Map<String, String> getMap(String prefix) {
     final String prefixWithColon = prefix + ":";
 
-    return new AbstractMap<String, String>() {
+    return new AbstractMap<>() {
       @Override
       public Set<Entry<String, String>> entrySet() {
         Set<Entry<String, String>> result = Sets.newHashSet();

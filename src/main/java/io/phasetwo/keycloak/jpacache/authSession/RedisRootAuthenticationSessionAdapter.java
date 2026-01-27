@@ -136,11 +136,9 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
       // todo
       // - does anyone mutate the map directly? do we need to support put/putAll/remove/clear?
 
-      if (asIds != null) {
         authSessions =
-            asIds.stream()
-                .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
-      }
+                asIds.stream()
+                        .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
     }
     authSessionsInitialized = true;
     return authSessions;
@@ -149,7 +147,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   @Override
   public AuthenticationSessionModel getAuthenticationSession(ClientModel client, String tabId) {
     log.tracef("getAuthenticationSession tabId=%s clientId=%s", tabId, client.getId());
-    if (client == null || tabId == null) {
+    if (tabId == null) {
       return null;
     }
     return authSessionTrx.getIfPresent(new AuthenticationSessionKey(client.getId(), tabId));
@@ -173,7 +171,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
               .min(TIMESTAMP_COMPARATOR);
       String tabId = oldest.map(RedisAuthenticationSessionAdapter::getTabId).orElse(null);
 
-      if (tabId != null && !oldest.isEmpty()) {
+      if (tabId != null) {
         log.debugf(
             "Reached limit (%s) of active authentication sessions per a root authentication session. Removing oldest authentication session with tabId %s.",
             authSessionsLimit, tabId);
@@ -222,9 +220,8 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   }
 
   private void removeAuthenticationSession(AuthenticationSessionModel authSession) {
-    if (authSession != null && authSession instanceof RedisAuthenticationSessionAdapter) {
-      RedisAuthenticationSessionAdapter adapter = (RedisAuthenticationSessionAdapter) authSession;
-      authSessionTrx.addForDelete(adapter);
+    if (authSession instanceof RedisAuthenticationSessionAdapter adapter) {
+        authSessionTrx.addForDelete(adapter);
     } else {
       log.tracef(
           "No authentication session found for %s",
