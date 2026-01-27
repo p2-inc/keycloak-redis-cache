@@ -387,16 +387,16 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef(
         "getUserSessionWithPredicate(%s, %s, %s)%s", realm, id, offline, getShortStackTrace());
 
-    RedisUserSessionAdapter a = userSessionTrx.getIfPresent(new UserSessionKey(id));
-    if (a == null) {
-      return null;
-    }
-    log.tracef(
-        "found session %s. comparing realm %s, offline %b, predicate %s",
-        a, realm.getId(), offline, predicate); // yyyy
-    if (!realm.getId().equals(a.getRealmId())) return null;
-    if (offline != a.isOffline()) return null;
-    return Stream.of(a).filter(predicate).findFirst().orElse(null);
+      Stream<UserSessionModel> userSessionEntityStream;
+      if (offline) {
+          userSessionEntityStream = getOfflineUserSessionEntityStream(realm, id)
+                  .filter(Objects::nonNull)
+                  .map(offlineSession -> (UserSessionModel) offlineSession);
+      } else {
+          UserSessionModel userSession = getUserSession(realm, id);
+          userSessionEntityStream = userSession != null ? Stream.of(userSession) : Stream.empty();
+      }
+    return userSessionEntityStream.filter(predicate).findFirst().orElse(null);
   }
 
   // xx
