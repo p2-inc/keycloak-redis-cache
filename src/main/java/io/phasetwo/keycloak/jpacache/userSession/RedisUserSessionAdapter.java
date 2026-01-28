@@ -91,7 +91,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     return clientSessions;
   }
 
-  private boolean filterAndRemoveClientSessionWithoutClient(
+    private boolean filterAndRemoveClientSessionWithoutClient(
       RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
     ClientModel client =
         session
@@ -341,5 +341,10 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   @Override
   public void setExpiration(Long expiration) {
     setField("expiration", expiration);
+  }
+
+  public void addAuthenticatedClientSession(RedisAuthenticatedClientSessionAdapter clientSessionEntity) {
+      clientSessionEntity.setParentId(this.getId());
+      clientSessionTrx.addForSave(clientSessionEntity);
   }
 }

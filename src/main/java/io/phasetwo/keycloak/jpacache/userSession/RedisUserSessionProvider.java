@@ -447,10 +447,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef("removeUserSessions(%s, %s)%s", realm, user, getShortStackTrace());
 
     getUserSessionsStream(realm, user)
-        .forEach(
-            a -> {
-              removeSession(a);
-            });
+        .forEach(this::removeSession);
   }
 
   private void removeSession(UserSessionModel a) {
@@ -602,15 +599,21 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         clientSession.getClient(),
         true);
 
-    //    Optional<RedisUserSessionAdapter> userSessionEntity =
-    // getOfflineUserSessionEntityStream(realm, offlineUserSession.getId()).findFirst();
-    //    if (userSessionEntity.isPresent()) {
-    //        RedisUserSessionAdapter userSession = userSessionEntity.get();
-    //        String clientId = clientSession.getClient().getId();
-    //
-    //        return userSession.addClientSession(clientId, clientSessionEntity);
-    //    }  - Todo: find use case where needed
-    return clientSessionEntity;
+      Optional<RedisUserSessionAdapter> userSessionEntity = getOfflineUserSessionEntityStream(realm, offlineUserSession.getId()).findFirst();
+      if (userSessionEntity.isPresent()) {
+          RedisUserSessionAdapter userSession = userSessionEntity.get();
+          String clientId = clientSession.getClient().getId();
+          var authenticatedClientSessions = userSession.getAuthenticatedClientSessionByClient(clientId);
+          if (authenticatedClientSessions != null) {
+              userSession.removeAuthenticatedClientSessions(List.of(authenticatedClientSessions.getId()));
+          }
+
+          userSession.addAuthenticatedClientSession(clientSessionEntity);
+
+          return clientSessionEntity;
+      }
+
+      return null;
   }
 
   // xx
@@ -853,7 +856,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       boolean offline,
       boolean stateTransient) {
     int timestamp = Time.currentTime();
-    id = id == null ? (userSessionId + "::" + clientId) + (offline ? ":offline" : "") : id;
+    id = id == null ? createAuthenticatedClientId(userSessionId, clientId, offline) : id;
     RedisAuthenticatedClientSessionAdapter entity =
         clientSessionTrx.get(new AuthenticatedClientSessionKey(id));
     entity.setRealmId(realmId);
@@ -867,7 +870,11 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     return entity;
   }
 
-  private RedisAuthenticatedClientSessionAdapter createAuthenticatedClientSessionInstance(
+    private static String createAuthenticatedClientId(String userSessionId, String clientId, boolean offline) {
+        return (userSessionId + "::" + clientId) + (offline ? "::offline" : "");
+    }
+
+    private RedisAuthenticatedClientSessionAdapter createAuthenticatedClientSessionInstance(
       AuthenticatedClientSessionModel clientSession,
       boolean offline,
       UserSessionModel offlineUserSession) {
