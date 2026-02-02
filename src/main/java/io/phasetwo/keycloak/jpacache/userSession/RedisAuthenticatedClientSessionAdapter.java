@@ -5,6 +5,9 @@ import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
+
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.AuthenticatedClientSessionModel;
@@ -48,7 +51,13 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   @Override
   public UserSessionModel getUserSession() {
-    return session.sessions().getUserSession(getRealm(), getParentId());
+    //find both offline and online sessions. TODO: find a more efficient way to determine the transaction state
+    return Stream.of(
+            session.sessions().getUserSession(getRealm(), getParentId()),
+            session.sessions().getOfflineUserSession(getRealm(), getParentId()))
+            .filter(Objects::nonNull)
+            .findAny()
+            .orElse(null);
   }
 
   @Override

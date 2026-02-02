@@ -316,6 +316,10 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
     */
   }
 
+  public void setAuthNotes(Map<String, String> authNotes) {
+    getAuthNotes().putAll(authNotes);
+  }
+
   @Override
   public boolean equals(Object o) {
     return this == o

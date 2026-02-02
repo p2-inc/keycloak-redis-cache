@@ -6,6 +6,8 @@ import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
@@ -148,23 +150,21 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
 
     log.tracef("updateNonlocalSessionAuthNotes(%s)%s", compoundId, getShortStackTrace());
 
-    // TODO implement
-
-    // how do I get the realm to make the key?
-
-    /*
-    TypedQuery<AuthenticationSession> query =
-        entityManager.createNamedQuery("findAuthSessionsByCompoundId", AuthenticationSession.class);
-    query.setParameter("parentSessionId", compoundId.getRootSessionId());
-    query.setParameter("tabId", compoundId.getTabId());
-    query.setParameter("clientId", compoundId.getClientUUID());
-    //    return query.getResultList().stream().findFirst();
-
-    AuthenticationSession authenticationSession = query.getSingleResult();
-    if (authenticationSession != null) {
-      authenticationSession.setAuthNotes(authNotesFragment);
-    }
-    */
+    String indexKey = String.format("auth-session:parent:%s", compoundId.getRootSessionId());
+    log.debugf("[redis] SMEMBERS %s", indexKey);
+    Set<String> strIds = jedis.smembers(indexKey);
+      if (strIds != null && !strIds.isEmpty()) {
+          strIds
+                  .stream()
+                  .map(AuthenticationSessionKey::fromString)
+                  .map(authSessionTrx::getIfPresent)
+                  .filter(Objects::nonNull)
+                  .filter(c -> c.getTabId().equals(compoundId.getTabId()))
+                  .filter(c -> c.getClient().getId().equals(compoundId.getClientUUID()))
+                  .findFirst()
+                  .ifPresent(authenticationSession ->
+                          authenticationSession.setAuthNotes(authNotesFragment));
+      }
   }
 
   @Override
