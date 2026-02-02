@@ -106,7 +106,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   private boolean matchingOfflineFlag(
       RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
     boolean isClientSessionOffline =
-        redisAuthenticatedClientSessionAdapter.getId().contains("offline");
+        redisAuthenticatedClientSessionAdapter.getUserSession().isOffline();
 
     return isOffline() == isClientSessionOffline;
   }
