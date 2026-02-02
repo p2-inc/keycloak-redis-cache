@@ -19,6 +19,7 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   private final KeycloakSession session;
 
+
   private static final String REFRESH_TOKEN_LAST_USE_PREFIX = "refreshTokenLastUsePrefix";
 
   public RedisAuthenticatedClientSessionAdapter(KeycloakSession session, String id) {
