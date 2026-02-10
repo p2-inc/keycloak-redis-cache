@@ -75,15 +75,17 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   @Override
   public void setNote(String name, String value) {
-    getNotes().put(name, value);
+    if (value == null) {
+        removeNote(name);
+    } else {
+        getNotes().put(name, value);
+    }
   }
 
   public void setNotes(Map<String, String> notes) {
     Map<String, String> ns = getNotes();
     ns.clear();
-    for (Map.Entry<String, String> note : notes.entrySet()) {
-      ns.put(note.getKey(), note.getValue());
-    }
+    ns.putAll(notes);
   }
 
   @Override

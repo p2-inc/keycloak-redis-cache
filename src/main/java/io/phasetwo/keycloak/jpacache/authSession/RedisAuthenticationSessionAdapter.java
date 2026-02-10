@@ -149,7 +149,11 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
 
   @Override
   public void setClientNote(String name, String value) {
-    getClientNotes().put(name, value);
+    if (value == null) {
+        removeClientNote(name);
+    } else {
+        getClientNotes().put(name, value);
+    }
   }
 
   @Override
@@ -173,7 +177,11 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
 
   @Override
   public void setAuthNote(String name, String value) {
-    getAuthNotes().put(name, value);
+    if (value == null) {
+        removeAuthNote(name);
+    } else {
+        getAuthNotes().put(name, value);
+    }
   }
 
   @Override
@@ -193,7 +201,11 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
 
   @Override
   public void setUserSessionNote(String name, String value) {
-    getUserSessionNotes().put(name, value);
+      if (value == null) {
+          getUserSessionNotes().remove(name);
+      } else {
+          getUserSessionNotes().put(name, value);
+      }
   }
 
   @Override
