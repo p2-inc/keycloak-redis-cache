@@ -230,7 +230,11 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public void setNote(String name, String value) {
-    getNotes().put(name, value);
+      if (value == null) {
+          removeNote(name);
+      } else {
+          getNotes().put(name, value);
+      }
   }
 
   public void setNotes(Map<String, String> notes) {
