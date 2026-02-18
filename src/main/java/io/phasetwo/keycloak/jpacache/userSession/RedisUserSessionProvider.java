@@ -312,13 +312,20 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
-      return strIds.stream()
+      var existingSessions = strIds.stream()
           .map(AuthenticatedClientSessionKey::fromString)
           .map(clientSessionTrx::getIfPresent)
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
-          .map(RedisAuthenticatedClientSessionAdapter::getUserSession)
+              .collect(
+                      Collectors.toMap(
+                              RedisAuthenticatedClientSessionAdapter::getClientUuid,
+                              s -> (AuthenticatedClientSessionModel) s));
+        addPreparedClientSessions(existingSessions);
+        return existingSessions.values()
+                .stream()
+          .map(AuthenticatedClientSessionModel::getUserSession)
           .filter(Objects::nonNull)
           .filter(us -> !us.isOffline());
     } else {
@@ -652,15 +659,22 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
-      return strIds.stream()
+      var existingSessions =  strIds.stream()
           .map(AuthenticatedClientSessionKey::fromString)
           .map(clientSessionTrx::getIfPresent)
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
-          .map(RedisAuthenticatedClientSessionAdapter::getUserSession)
-          .filter(UserSessionModel::isOffline)
-          .count();
+          .collect(
+                      Collectors.toMap(
+                              RedisAuthenticatedClientSessionAdapter::getClientUuid,
+                              s -> (AuthenticatedClientSessionModel) s));
+           addPreparedClientSessions(existingSessions);
+       return existingSessions.values()
+               .stream()
+               .map(AuthenticatedClientSessionModel::getUserSession)
+               .filter(UserSessionModel::isOffline)
+               .count();
     }
     return 0;
   }
@@ -677,13 +691,21 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
-      return strIds.stream()
+      var clientSessions = strIds.stream()
           .map(AuthenticatedClientSessionKey::fromString)
           .map(clientSessionTrx::getIfPresent)
           .filter(Objects::nonNull)
           .filter(c -> c.getRealmId().equals(realm.getId()))
           .filter(c -> c.getClientUuid().equals(client.getId()))
-          .map(RedisAuthenticatedClientSessionAdapter::getUserSession)
+           .collect(
+                      Collectors.toMap(
+                              RedisAuthenticatedClientSessionAdapter::getClientUuid,
+                              s -> (AuthenticatedClientSessionModel) s));
+
+      addPreparedClientSessions(clientSessions);
+      return  clientSessions.values()
+               .stream()
+          .map(AuthenticatedClientSessionModel::getUserSession)
           .filter(Objects::nonNull)
           .filter(UserSessionModel::isOffline)
           .skip(firstResult != null && firstResult > 0 ? firstResult : 0)
@@ -890,4 +912,48 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     entity.setTimestamp(clientSession.getTimestamp());
     return entity;
   }
+
+    public void addPreparedClientSessions(
+            Map<String, AuthenticatedClientSessionModel> existingSessions) {
+        var deltaMap = calculateDelta();
+        deltaMap.forEach((id, session) -> {
+            if (session == null) {
+                existingSessions.remove(id);
+            } else {
+                existingSessions.put(id, session);
+            }
+        });
+    }
+
+    private Map<String, AuthenticatedClientSessionModel> calculateDelta() {
+        // 1. Reference the original maps (Read-only)
+        var toBeDeleted = clientSessionTrx.getToDelete();
+        var toBeAdded = clientSessionTrx.getCache();
+
+        // 2. Create the result map (The only one that will be modified)
+        Map<String, AuthenticatedClientSessionModel> deltaResult = new HashMap<>();
+
+        // 3. Process Additions/Updates first
+        // Use merge to handle duplicates by timestamp without changing toBeAdded
+        if (toBeAdded != null) {
+            toBeAdded.forEach((key, session) -> {
+                String clientId = session.getClientUuid();
+                deltaResult.merge(clientId, session, (existing, replacement) ->
+                        replacement.getTimestamp() > existing.getTimestamp() ? replacement : existing
+                );
+            });
+        }
+
+        // 4. Process Deletions
+        // If a key is in 'toBeDeleted' but NOT in 'deltaResult', it's a true removal.
+        if (toBeDeleted != null) {
+            toBeDeleted.forEach((key, value) -> {
+                String clientId = value.getClientUuid();
+                // We only add a null marker if there isn't a newer "Add" for this client
+                deltaResult.putIfAbsent(clientId, null);
+            });
+        }
+
+        return deltaResult;
+    }
 }

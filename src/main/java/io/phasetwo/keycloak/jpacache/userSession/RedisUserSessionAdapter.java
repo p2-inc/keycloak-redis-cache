@@ -6,10 +6,8 @@ import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
@@ -68,8 +66,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public Map<String, AuthenticatedClientSessionModel> getAuthenticatedClientSessions() {
-    //    if (clientSessionsInitialized) return clientSessions;  -- Not updated correctly. Was
-    // affecting testOnClientRemoved
+//    if (clientSessionsInitialized) return clientSessions;
 
     String indexKey = String.format("authenticated-client:parent-index:%s", getId());
     log.debugf("[redis] SMEMBERS %s", indexKey);
@@ -87,20 +84,67 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
                       RedisAuthenticatedClientSessionAdapter::getClientUuid,
                       s -> (AuthenticatedClientSessionModel) s));
     }
+
+    addPreparedClientSessions(clientSessions);
+
     clientSessionsInitialized = true;
     return clientSessions;
   }
 
-    private boolean filterAndRemoveClientSessionWithoutClient(
-      RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
-    ClientModel client =
-        session
-            .clients()
-            .getClientById(
-                redisAuthenticatedClientSessionAdapter.getRealm(),
-                redisAuthenticatedClientSessionAdapter.getClientUuid());
+    public void addPreparedClientSessions(
+            Map<String, AuthenticatedClientSessionModel> existingSessions) {
+       var deltaMap = calculateDelta();
+        deltaMap.forEach((id, session) -> {
+            if (session == null) {
+                existingSessions.remove(id);
+            } else {
+                existingSessions.put(id, session);
+            }
+        });
+    }
 
-    return client != null;
+    private Map<String, AuthenticatedClientSessionModel> calculateDelta() {
+        // 1. Reference the original maps (Read-only)
+        var toBeDeleted = clientSessionTrx.getToDelete();
+        var toBeAdded = clientSessionTrx.getCache();
+
+        // 2. Create the result map (The only one that will be modified)
+        Map<String, AuthenticatedClientSessionModel> deltaResult = new HashMap<>();
+
+        // 3. Process Additions/Updates first
+        // Use merge to handle duplicates by timestamp without changing toBeAdded
+        if (toBeAdded != null) {
+            toBeAdded.forEach((key, session) -> {
+                String clientId = session.getClientUuid();
+                deltaResult.merge(clientId, session, (existing, replacement) ->
+                        replacement.getTimestamp() > existing.getTimestamp() ? replacement : existing
+                );
+            });
+        }
+
+        // 4. Process Deletions
+        // If a key is in 'toBeDeleted' but NOT in 'deltaResult', it's a true removal.
+        if (toBeDeleted != null) {
+            toBeDeleted.forEach((key, value) -> {
+                String clientId = value.getClientUuid();
+                // We only add a null marker if there isn't a newer "Add" for this client
+                deltaResult.putIfAbsent(clientId, null);
+            });
+        }
+
+        return deltaResult;
+    }
+
+  private boolean filterAndRemoveClientSessionWithoutClient(
+          RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+      ClientModel client =
+              session
+                      .clients()
+                      .getClientById(
+                              redisAuthenticatedClientSessionAdapter.getRealm(),
+                              redisAuthenticatedClientSessionAdapter.getClientUuid());
+
+      return client != null;
   }
 
   private boolean matchingOfflineFlag(

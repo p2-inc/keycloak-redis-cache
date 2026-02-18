@@ -15,6 +15,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import lombok.Getter;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.AbstractPipeline;
@@ -26,8 +28,11 @@ import redis.clients.jedis.UnifiedJedis;
 public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     extends AbstractKeycloakTransaction {
 
+  @Getter
   private final Map<K, A> cache = Maps.newHashMap();
+  @Getter
   private final Map<K, A> toDelete = Maps.newHashMap();
+
   private final AdapterSupplier<K, A> adapterSupplier;
   private final UnifiedJedis jedis;
   private final String cacheName;
