@@ -34,7 +34,7 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
 
   @Override
   public UserLoginFailureModel addUserLoginFailure(RealmModel realm, String userId) {
-    return loginFailureTrx.get(new LoginFailureKey(realm.getId(), userId));
+    return loginFailureTrx.getOrCreate(new LoginFailureKey(realm.getId(), userId));
   }
 
   @Override

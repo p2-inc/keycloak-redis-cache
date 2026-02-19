@@ -105,7 +105,7 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
       adapter = (RedisRootAuthenticationSessionAdapter) authenticationSession;
     } else {
       adapter =
-          rootSessionTrx.get(
+          rootSessionTrx.getIfPresent(
               new RootAuthenticationSessionKey(realm.getId(), authenticationSession.getId()));
     }
     rootSessionTrx.addForDelete(adapter);

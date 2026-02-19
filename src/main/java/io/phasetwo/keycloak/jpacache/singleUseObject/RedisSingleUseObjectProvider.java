@@ -28,15 +28,15 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   @Override
   public void put(String key, long lifespanSeconds, Map<String, String> notes) {
     log.debugf("[redis] Put %s %s", key, notes);
-    RedisSingleUseObjectAdapter a = suoTrx.get(new SingleUseObjectKey(key));
+    RedisSingleUseObjectAdapter a = suoTrx.getOrCreate(new SingleUseObjectKey(key));
     if (a != null) {
       a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
       a.replaceNotes(notes);
     } else {
-      var suoAdapter = new RedisSingleUseObjectAdapter(session, key, notes);
-      suoAdapter.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
-      suoTrx.addForSave(suoAdapter);
+        a = new RedisSingleUseObjectAdapter(session, key, notes);
+        a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
     }
+    suoTrx.addForSave(a);
   }
 
   @Override
@@ -74,7 +74,7 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
     if (a != null) {
       return false;
     } else {
-      a = suoTrx.get(k);
+      a = suoTrx.getOrCreate(k);
       a.setExpiration(Time.currentTimeMillis() + (lifespanSeconds * 1000L));
       return true;
     }

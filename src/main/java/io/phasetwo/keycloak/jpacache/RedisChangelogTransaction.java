@@ -62,7 +62,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
    * Gets the value if present at the key. Creates a new instance and registers it for saving using
    * the adapter supplier if none is present at the key.
    */
-  public A get(K k) {
+  public A getOrCreate(K k) {
     A model = getIfPresent(k);
     if (model == null) {
       model = adapterSupplier.newInstance(k);
@@ -179,7 +179,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     }
 
     String[] kw = keysToWatch.toArray(new String[0]);
-    if (kw == null || kw.length == 0) {
+    if (kw.length == 0) {
       log.trace("nothing to WATCH. skipping transaction...");
       return; // nothing to do?
     } else {
@@ -197,7 +197,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       for (A model : cache.values()) {
         String key = model.getKey().key();
 
-        if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
+        if (model.isMarkedForDelete()) {
           log.tracef("[redis] DEL %s", key);
           txn.del(key);
           countOperation(DEL);
@@ -207,16 +207,15 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
             countOperation(SREM);
             toDelete.remove(model.getKey());
           }
-        } else if (model.isDirty()) {
+        } else if (model.isDirty() && !toDelete.containsKey(model.getKey())) {
           Map<String, String> updates = model.getDirtyFields();
           if (!updates.isEmpty()) {
 
             long expireAtMs = 0L;
 
             // hset the new/changed values
-            if (model instanceof ExpirableEntity) {
-              ExpirableEntity e = (ExpirableEntity) model;
-              expireAtMs = e.getExpiration();
+            if (model instanceof ExpirableEntity e) {
+                expireAtMs = e.getExpiration();
               // log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key,
               // updates);
               // jedis 7.1.0
@@ -253,7 +252,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
           // hdel the values that were unset
           Set<String> deletedFields = model.getDeletedFields();
           String[] del = deletedFields.toArray(new String[0]);
-          if (del != null && del.length > 0) {
+          if (del.length > 0) {
             log.tracef("[redis] HDEL %s %s", key, Arrays.toString(del));
             txn.hdel(key, del);
             countOperation(HDEL);
@@ -263,15 +262,17 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       // will this ever run?
       log.tracef("toDelete still has %d entries", toDelete.size());
       for (A model : toDelete.values()) {
-        String key = model.getKey().key();
-        log.tracef("[redis] DEL %s", key);
-        txn.del(key);
-        countOperation(HDEL);
+
+
         for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
           log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
           txn.srem(index.getKey(), index.getValue());
           countOperation(SREM);
         }
+          String key = model.getKey().key();
+          log.tracef("[redis] DEL %s", key);
+          txn.del(key);
+          countOperation(HDEL);
       }
 
       log.tracef("[redis] EXEC");

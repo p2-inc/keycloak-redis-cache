@@ -39,6 +39,12 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
+    StringBuilder sb = new StringBuilder("Full Stack Trace:\n");
+    for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+        sb.append("\tat ").append(element).append("\n");
+    }
+    String fullTrace = sb.toString();
+    log.debugf("[%s] I.m calling the methods for authenticated-client:parent-index:%s and authenticated-client:parent-index:%s", fullTrace, getParentId(), getClientUuid());
     siPut(b, "authenticated-client:parent-index:%s", getParentId(), getKey().key());
     siPut(b, "authenticated-client:client-index:%s", getClientUuid(), getKey().key());
     return b.build();

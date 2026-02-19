@@ -130,7 +130,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
           (RedisAuthenticatedClientSessionAdapter) authenticatedClientSession;
     } else {
       authenticatedClientSessionEntity =
-          clientSessionTrx.get(
+          clientSessionTrx.getOrCreate(
               new AuthenticatedClientSessionKey(authenticatedClientSession.getId()));
     }
     return authenticatedClientSessionEntity;
@@ -437,6 +437,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     if (a != null && Objects.equals(session.getRealm(), realm) && !session.isOffline()) {
       log.infof("adding for delete %s", a);
       userSessionTrx.addForDelete(a);
+      a.getAuthenticatedClientSessions().forEach((key, value) -> clientSessionTrx.addForDelete((RedisAuthenticatedClientSessionAdapter) value));
     }
   }
 
@@ -827,7 +828,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
       boolean offline) {
     int timestamp = Time.currentTime();
     id = id == null ? KeycloakModelUtils.generateId() : id;
-    RedisUserSessionAdapter entity = userSessionTrx.get(new UserSessionKey(id));
+    RedisUserSessionAdapter entity = userSessionTrx.getOrCreate(new UserSessionKey(id));
     entity.setUserId(userId);
     entity.setRealmId(realmId);
     entity.setLoginUsername(loginUsername);
@@ -857,7 +858,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     int timestamp = Time.currentTime();
     id = id == null ? createAuthenticatedClientId(userSessionId, clientId) : id;
     RedisAuthenticatedClientSessionAdapter entity =
-        clientSessionTrx.get(new AuthenticatedClientSessionKey(id));
+        clientSessionTrx.getOrCreate(new AuthenticatedClientSessionKey(id));
     entity.setRealmId(realmId);
     entity.setClientUuid(clientId);
     entity.setParentId(userSessionId);

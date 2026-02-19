@@ -130,15 +130,10 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = jedis.smembers(indexKey);
     if (strIds != null && !strIds.isEmpty()) {
-      Set<AuthenticationSessionKey> asIds =
-          strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
-
-      // todo
-      // - does anyone mutate the map directly? do we need to support put/putAll/remove/clear?
-
-        authSessions =
-                asIds.stream()
-                        .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
+        authSessions = strIds
+                  .stream()
+                  .map(AuthenticationSessionKey::fromString)
+                  .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::getIfPresent));
     }
     authSessionsInitialized = true;
     return authSessions;
@@ -177,14 +172,14 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
             authSessionsLimit, tabId);
 
         // remove the oldest authentication session
-        authSessionTrx.addForDelete(oldest.get());
-        authSessions.remove(tabId);
+        removeAuthenticationSession(oldest.get());
+
       }
     }
 
     String tabId = generateTabId();
     RedisAuthenticationSessionAdapter adapter =
-        authSessionTrx.get(new AuthenticationSessionKey(client.getId(), tabId));
+        authSessionTrx.getOrCreate(new AuthenticationSessionKey(client.getId(), tabId));
     adapter.setClientUuid(client.getId());
     adapter.setParentSession(this);
     adapter.setTimestamp(timestamp);
@@ -207,7 +202,6 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     if (as == null) return;
     RealmModel realm = as.getRealm();
     removeAuthenticationSession(as);
-    authSessions.remove(tabId);
     if (authSessions.isEmpty()) {
       session.authenticationSessions().removeRootAuthenticationSession(realm, this);
     } else {
@@ -222,6 +216,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   private void removeAuthenticationSession(AuthenticationSessionModel authSession) {
     if (authSession instanceof RedisAuthenticationSessionAdapter adapter) {
         authSessionTrx.addForDelete(adapter);
+        authSessions.remove(adapter.getTabId());
     } else {
       log.tracef(
           "No authentication session found for %s",
