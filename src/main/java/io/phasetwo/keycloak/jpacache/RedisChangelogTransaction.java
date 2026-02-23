@@ -193,6 +193,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     // need a
     // separate Pipeline to reduce round trips inside a MULTI.
     try (AbstractTransaction txn = jedis.multi()) {
+      List<RedisHashCas.CasInvocation> casInvocations = Lists.newArrayList();
 
       for (A model : cache.values()) {
         String key = model.getKey().key();
@@ -239,7 +240,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
             }
             // using redis CAS function
             RedisHashCas cas = new RedisHashCas(txn);
-            cas.hsetex(key, model.getVersion(), expireAtMs, updates);
+            casInvocations.add(cas.hsetex(key, model.getVersion(), expireAtMs, updates));
             countOperation(HSETEX);
           }
           // sadd the secondary indexes
@@ -278,6 +279,20 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       List<Object> results = txn.exec();
       if (results == null) {
         throw new IllegalStateException("Redis transaction aborted due to concurrent modification");
+      }
+      for (RedisHashCas.CasInvocation invocation : casInvocations) {
+        long code = invocation.getResponseCode();
+        if (code != 1L) {
+          log.warnf(
+              "[redis] CAS hsetex returned non-success code %s. %s",
+              code == RedisHashCas.NON_NUMERIC_RESPONSE_CODE ? "non-numeric" : String.valueOf(code),
+              invocation);
+        } else {
+          log.tracef(
+              "[redis] CAS hsetex returned success code %s. %s",
+              code == RedisHashCas.NON_NUMERIC_RESPONSE_CODE ? "non-numeric" : String.valueOf(code),
+              invocation);
+        }
       }
     }
   }
