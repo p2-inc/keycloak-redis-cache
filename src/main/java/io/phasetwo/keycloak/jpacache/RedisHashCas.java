@@ -1,16 +1,20 @@
 package io.phasetwo.keycloak.jpacache;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import lombok.extern.jbosslog.JBossLog;
 import redis.clients.jedis.AbstractTransaction;
+import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
 /** */
 @JBossLog
 public final class RedisHashCas {
+
+  public static final long NON_NUMERIC_RESPONSE_CODE = Long.MIN_VALUE;
 
   private static final String LUA_SCRIPT =
 """
@@ -58,6 +62,50 @@ return 1
 
   private final AbstractTransaction txn;
 
+  public static final class CasInvocation {
+    private final Response<Object> response;
+    private final String key;
+    private final long expectedVersion;
+    private final Long expireAtMs;
+    private final Map<String, String> updates;
+
+    private CasInvocation(
+        Response<Object> response,
+        String key,
+        long expectedVersion,
+        Long expireAtMs,
+        Map<String, String> updates) {
+      this.response = response;
+      this.key = key;
+      this.expectedVersion = expectedVersion;
+      this.expireAtMs = expireAtMs;
+      this.updates = new LinkedHashMap<>(updates);
+    }
+
+    public long getResponseCode() {
+      Object result = getRawResultSafely();
+      if (result instanceof Number) {
+        return ((Number) result).longValue();
+      }
+      return NON_NUMERIC_RESPONSE_CODE;
+    }
+
+    @Override
+    public String toString() {
+      return String.format(
+          "key=%s expectedVersion=%d expireAtMs=%s updates=%s rawResult=%s",
+          key, expectedVersion, expireAtMs, updates, getRawResultSafely());
+    }
+
+    private Object getRawResultSafely() {
+      try {
+        return response.get();
+      } catch (RuntimeException ex) {
+        return "error reading response: " + ex.getMessage();
+      }
+    }
+  }
+
   /** Used inside an existing MULTI/EXEC block. */
   public RedisHashCas(AbstractTransaction txn) {
     this.txn = Objects.requireNonNull(txn, "transaction");
@@ -78,7 +126,7 @@ return 1
    * @param expireAtMs expiration timestamp (ms since epoch), or null
    * @param updates map of field/value updates
    */
-  public void hsetex(
+  public CasInvocation hsetex(
       String key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
     if (scriptSha == null) {
       throw new IllegalStateException("RedisHashCas.initialize() not called");
@@ -100,6 +148,7 @@ return 1
     log.tracef(
         "[redis] (lua CAS version:%d) (exp:%d) HSET %s %s",
         expectedVersion, expireAtMs, key, updates);
-    txn.evalsha(scriptSha, keys, args);
+    Response<Object> response = txn.evalsha(scriptSha, keys, args);
+    return new CasInvocation(response, key, expectedVersion, expireAtMs, updates);
   }
 }
