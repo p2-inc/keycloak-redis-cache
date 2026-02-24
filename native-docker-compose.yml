@@ -3,8 +3,6 @@ volumes:
     driver: local
   caddy_data:
     driver: local
-  valkey_data:
-    driver: local
 
 services:
   cockroach:
@@ -14,16 +12,7 @@ services:
     command: start-single-node --insecure
     ports:
       - 26257:26257
-  valkey:
-    image: valkey/valkey:8.1.5
-    ports:
-      - "6379:6379"
-    command: >
-      valkey-server
-      --appendonly yes
-      --protected-mode no
-    volumes:
-      - valkey_data:/data
+
   keycloak:
     image: quay.io/phasetwo/keycloak-crdb:26.4.7
     ulimits:
@@ -33,8 +22,6 @@ services:
     deploy:
       mode: replicated
       replicas: 3
-    volumes:
-      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
     environment:
       KC_HTTP_PORT: 8080
       KC_DB: cockroach
@@ -54,16 +41,12 @@ services:
       KC_PROXY_HEADERS: 'xforwarded'
       KC_METRICS_ENABLED: 'true'
       KC_HEALTH_ENABLED: 'true'
-      KC_COMMUNITY_REDIS_CACHE_ENABLED: true
-      KC_SPI_REDIS_CONNECTION_DEFAULT_MODE: "standalone"
-      KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "valkey:6379"
       KC_CACHE: local
-      #KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
-      KC_LOG_LEVEL: INFO,io.phasetwo.keycloak.jpacache:WARN
+      KC_LOG_LEVEL: INFO
     entrypoint: /opt/keycloak/bin/kc.sh --verbose start
     depends_on:
       - cockroach
-      - valkey
+
   caddy:
     image: caddy:2-alpine
     ulimits:
@@ -71,7 +54,6 @@ services:
         soft: 65536
         hard: 65536
     restart: unless-stopped
-    #command: caddy reverse-proxy --from https://s01.villamiramar.fr:443 --to http://keycloak:8080
     ports:
       - 80:80
       - 443:443
