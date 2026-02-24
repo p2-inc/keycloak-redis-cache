@@ -16,6 +16,8 @@ import org.keycloak.common.util.Time;
 import org.keycloak.models.*;
 import redis.clients.jedis.UnifiedJedis;
 
+import static io.phasetwo.keycloak.common.ExpirationUtils.isExpired;
+
 @JBossLog
 public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     implements UserSessionModel, ExpirableEntity {
@@ -80,6 +82,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
               .map(AuthenticatedClientSessionKey::fromString)
               .map(clientSessionTrx::getIfPresent)
               .filter(Objects::nonNull)
+              .filter(this::filterAndRemoveExpiredClientSessions)
               .filter(this::matchingOfflineFlag)
               .filter(this::filterAndRemoveClientSessionWithoutClient)
               .collect(
@@ -109,6 +112,21 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
         redisAuthenticatedClientSessionAdapter.getUserSession().isOffline();
 
     return isOffline() == isClientSessionOffline;
+  }
+
+  private boolean filterAndRemoveExpiredClientSessions(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+      try {
+          if (isExpired(redisAuthenticatedClientSessionAdapter, false)) {
+              clientSessionTrx.addForDelete(redisAuthenticatedClientSessionAdapter);
+              return false;
+          }
+      } catch (ModelIllegalStateException ex) {
+          clientSessionTrx.addForDelete(redisAuthenticatedClientSessionAdapter);
+          //clientSessions.remove(redisAuthenticatedClientSessionAdapter);
+          return false;
+      }
+
+      return true;
   }
 
   @Override
