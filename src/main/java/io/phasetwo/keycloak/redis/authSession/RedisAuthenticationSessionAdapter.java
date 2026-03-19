@@ -150,9 +150,9 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   @Override
   public void setClientNote(String name, String value) {
     if (value == null) {
-        removeClientNote(name);
+      removeClientNote(name);
     } else {
-        getClientNotes().put(name, value);
+      getClientNotes().put(name, value);
     }
   }
 
@@ -178,9 +178,9 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   @Override
   public void setAuthNote(String name, String value) {
     if (value == null) {
-        removeAuthNote(name);
+      removeAuthNote(name);
     } else {
-        getAuthNotes().put(name, value);
+      getAuthNotes().put(name, value);
     }
   }
 
@@ -201,11 +201,11 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
 
   @Override
   public void setUserSessionNote(String name, String value) {
-      if (value == null) {
-          getUserSessionNotes().remove(name);
-      } else {
-          getUserSessionNotes().put(name, value);
-      }
+    if (value == null) {
+      getUserSessionNotes().remove(name);
+    } else {
+      getUserSessionNotes().put(name, value);
+    }
   }
 
   @Override
@@ -329,10 +329,10 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   }
 
   public void setAuthNotes(Map<String, String> authNotes) {
-      if (getAuthNotes() != null) {
-         getAuthNotes().clear();
-         getAuthNotes().putAll(authNotes);
-      }
+    if (getAuthNotes() != null) {
+      getAuthNotes().clear();
+      getAuthNotes().putAll(authNotes);
+    }
   }
 
   @Override

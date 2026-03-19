@@ -1,5 +1,7 @@
 package io.phasetwo.keycloak.redis.userSession;
 
+import static io.phasetwo.keycloak.common.ExpirationUtils.isExpired;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -15,8 +17,6 @@ import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.*;
 import redis.clients.jedis.UnifiedJedis;
-
-import static io.phasetwo.keycloak.common.ExpirationUtils.isExpired;
 
 @JBossLog
 public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
@@ -94,7 +94,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     return clientSessions;
   }
 
-    private boolean filterAndRemoveClientSessionWithoutClient(
+  private boolean filterAndRemoveClientSessionWithoutClient(
       RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
     ClientModel client =
         session
@@ -114,19 +114,20 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     return isOffline() == isClientSessionOffline;
   }
 
-  private boolean filterAndRemoveExpiredClientSessions(RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
-      try {
-          if (isExpired(redisAuthenticatedClientSessionAdapter, false)) {
-              clientSessionTrx.addForDelete(redisAuthenticatedClientSessionAdapter);
-              return false;
-          }
-      } catch (ModelIllegalStateException ex) {
-          clientSessionTrx.addForDelete(redisAuthenticatedClientSessionAdapter);
-          //clientSessions.remove(redisAuthenticatedClientSessionAdapter);
-          return false;
+  private boolean filterAndRemoveExpiredClientSessions(
+      RedisAuthenticatedClientSessionAdapter redisAuthenticatedClientSessionAdapter) {
+    try {
+      if (isExpired(redisAuthenticatedClientSessionAdapter, false)) {
+        clientSessionTrx.addForDelete(redisAuthenticatedClientSessionAdapter);
+        return false;
       }
+    } catch (ModelIllegalStateException ex) {
+      clientSessionTrx.addForDelete(redisAuthenticatedClientSessionAdapter);
+      // clientSessions.remove(redisAuthenticatedClientSessionAdapter);
+      return false;
+    }
 
-      return true;
+    return true;
   }
 
   @Override
@@ -248,11 +249,11 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public void setNote(String name, String value) {
-      if (value == null) {
-          removeNote(name);
-      } else {
-          getNotes().put(name, value);
-      }
+    if (value == null) {
+      removeNote(name);
+    } else {
+      getNotes().put(name, value);
+    }
   }
 
   public void setNotes(Map<String, String> notes) {
@@ -365,8 +366,9 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     setField("expiration", expiration);
   }
 
-  public void addAuthenticatedClientSession(RedisAuthenticatedClientSessionAdapter clientSessionEntity) {
-      clientSessionEntity.setParentId(this.getId());
-      clientSessionTrx.addForSave(clientSessionEntity);
+  public void addAuthenticatedClientSession(
+      RedisAuthenticatedClientSessionAdapter clientSessionEntity) {
+    clientSessionEntity.setParentId(this.getId());
+    clientSessionTrx.addForSave(clientSessionEntity);
   }
 }

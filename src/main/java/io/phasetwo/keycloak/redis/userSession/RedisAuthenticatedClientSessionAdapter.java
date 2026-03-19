@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.AuthenticatedClientSessionModel;
@@ -21,7 +20,6 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
     implements AuthenticatedClientSessionModel, ExpirableEntity {
 
   private final KeycloakSession session;
-
 
   private static final String REFRESH_TOKEN_LAST_USE_PREFIX = "refreshTokenLastUsePrefix";
 
@@ -51,13 +49,14 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
 
   @Override
   public UserSessionModel getUserSession() {
-    //find both offline and online sessions. TODO: find a more efficient way to determine the transaction state
+    // find both offline and online sessions. TODO: find a more efficient way to determine the
+    // transaction state
     return Stream.of(
             session.sessions().getUserSession(getRealm(), getParentId()),
             session.sessions().getOfflineUserSession(getRealm(), getParentId()))
-            .filter(Objects::nonNull)
-            .findAny()
-            .orElse(null);
+        .filter(Objects::nonNull)
+        .findAny()
+        .orElse(null);
   }
 
   @Override
@@ -76,9 +75,9 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public void setNote(String name, String value) {
     if (value == null) {
-        removeNote(name);
+      removeNote(name);
     } else {
-        getNotes().put(name, value);
+      getNotes().put(name, value);
     }
   }
 

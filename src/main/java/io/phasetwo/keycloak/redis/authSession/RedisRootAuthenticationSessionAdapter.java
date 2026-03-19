@@ -3,12 +3,10 @@ package io.phasetwo.keycloak.redis.authSession;
 import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.TimeAdapter;
 import io.phasetwo.keycloak.redis.MapEntity;
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
-
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
@@ -118,18 +116,17 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   @Override
   public Map<String, AuthenticationSessionModel> getAuthenticationSessions() {
 
-      String indexKey = String.format("auth-session:parent:%s", getId());
-      log.debugf("[redis] SMEMBERS %s", indexKey);
-      Set<String> strIds = jedis.smembers(indexKey);
-      if (strIds != null && !strIds.isEmpty()) {
-          Set<AuthenticationSessionKey> asIds =
-                  strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
-          return
-                  asIds.stream()
-                          .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
-      }
+    String indexKey = String.format("auth-session:parent:%s", getId());
+    log.debugf("[redis] SMEMBERS %s", indexKey);
+    Set<String> strIds = jedis.smembers(indexKey);
+    if (strIds != null && !strIds.isEmpty()) {
+      Set<AuthenticationSessionKey> asIds =
+          strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
+      return asIds.stream()
+          .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
+    }
 
-      return new HashMap<>();
+    return new HashMap<>();
   }
 
   @Override
@@ -209,7 +206,7 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   private void removeAuthenticationSession(AuthenticationSessionModel authSession) {
     if (authSession instanceof RedisAuthenticationSessionAdapter adapter) {
-        authSessionTrx.addForDelete(adapter);
+      authSessionTrx.addForDelete(adapter);
     } else {
       log.tracef(
           "No authentication session found for %s",
