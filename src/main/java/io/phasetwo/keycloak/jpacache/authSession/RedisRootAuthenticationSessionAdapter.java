@@ -8,12 +8,8 @@ import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.TimeAdapter;
 import io.phasetwo.keycloak.jpacache.MapEntity;
 import io.phasetwo.keycloak.jpacache.RedisChangelogTransaction;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
@@ -36,9 +32,6 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   private final RedisChangelogTransaction<
           AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
       authSessionTrx;
-
-  private Map<String, AuthenticationSessionModel> authSessions = Maps.newHashMap();
-  private boolean authSessionsInitialized = false;
 
   public RedisRootAuthenticationSessionAdapter(
       KeycloakSession session,
@@ -124,24 +117,19 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
 
   @Override
   public Map<String, AuthenticationSessionModel> getAuthenticationSessions() {
-    if (authSessionsInitialized) return authSessions;
 
-    String indexKey = String.format("auth-session:parent:%s", getId());
-    log.debugf("[redis] SMEMBERS %s", indexKey);
-    Set<String> strIds = jedis.smembers(indexKey);
-    if (strIds != null && !strIds.isEmpty()) {
-      Set<AuthenticationSessionKey> asIds =
-          strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
+      String indexKey = String.format("auth-session:parent:%s", getId());
+      log.debugf("[redis] SMEMBERS %s", indexKey);
+      Set<String> strIds = jedis.smembers(indexKey);
+      if (strIds != null && !strIds.isEmpty()) {
+          Set<AuthenticationSessionKey> asIds =
+                  strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
+          return
+                  asIds.stream()
+                          .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
+      }
 
-      // todo
-      // - does anyone mutate the map directly? do we need to support put/putAll/remove/clear?
-
-        authSessions =
-                asIds.stream()
-                        .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
-    }
-    authSessionsInitialized = true;
-    return authSessions;
+      return new HashMap<>();
   }
 
   @Override
