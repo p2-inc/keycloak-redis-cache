@@ -4,10 +4,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.phasetwo.keycloak</groupId>
-  <artifactId>keycloak-jpa-cache</artifactId>
+  <artifactId>keycloak-redis</artifactId>
   <version>0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
-  <name>keycloak-jpa-cache</name>
+  <name>keycloak-redis</name>
   <description>Keycloak cache replacement using JPA</description>
 
   <parent>
@@ -31,15 +31,15 @@
   </licenses>
 
   <scm>
-    <url>https://github.com/p2-inc/keycloak-jpa-cache</url>
-    <connection>scm:git:git@github.com:p2-inc/keycloak-jpa-cache.git</connection>
+    <url>https://github.com/p2-inc/keycloak-redis</url>
+    <connection>scm:git:git@github.com:p2-inc/keycloak-redis.git</connection>
     <tag>HEAD</tag>
   </scm>
 
   <properties>
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <main.java.package>io.phasetwo.keycloak.jpacache</main.java.package>
+    <main.java.package>io.phasetwo.keycloak.redis</main.java.package>
     <junit.version>5.8.2</junit.version>
     <keycloak.version>26.4.7</keycloak.version>
     <lombok.version>1.18.42</lombok.version>
@@ -161,7 +161,7 @@
             <!-- keycloak.model.parameters lists parameter classes from
                  org.keycloak.model.parameters package and determine enabled providers -->
             <kc.community.redis.cache.enabled>true</kc.community.redis.cache.enabled>
-            <keycloak.model.parameters>JpaCacheParameters</keycloak.model.parameters>
+            <keycloak.model.parameters>RedisParameters</keycloak.model.parameters>
             <keycloak.connectionsJpa.default.driver>${keycloak.connectionsJpa.driver}</keycloak.connectionsJpa.default.driver>
             <keycloak.connectionsJpa.default.database>${keycloak.connectionsJpa.database}</keycloak.connectionsJpa.default.database>
             <keycloak.connectionsJpa.default.user>${keycloak.connectionsJpa.user}</keycloak.connectionsJpa.default.user>
@@ -182,7 +182,7 @@
           <properties>
             <property>
               <name>listener</name>
-              <value>io.phasetwo.keycloak.jpacache.testsuite.AfterSuiteListener</value>
+              <value>io.phasetwo.keycloak.redis.testsuite.AfterSuiteListener</value>
             </property>
           </properties>
         </configuration>

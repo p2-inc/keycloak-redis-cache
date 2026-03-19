@@ -10,7 +10,7 @@ services:
     image: quay.io/keycloak/keycloak:26.4.7
     volumes:
       - h2_data:/opt/keycloak/data
-      - ./target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
+      - ./target/keycloak-redis-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-redis-0.1-SNAPSHOT-withdeps.jar
     environment:
       KC_DB_USERNAME: "sa"
       KC_COMMUNITY_REDIS_CACHE_ENABLED: true
@@ -19,7 +19,7 @@ services:
       KC_CACHE: local
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
+      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.redis:TRACE
       JAVA_OPTS: -agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true
     ports:
       - 8080:8080
