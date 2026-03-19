@@ -885,7 +885,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
                 isTransient(offlineUserSession));
     entity.setAction(clientSession.getAction());
     entity.setProtocol(clientSession.getProtocol());
-    entity.setNotes(clientSession.getNotes());
+    entity.setNotes(new HashMap<>(clientSession.getNotes()));
     entity.setRedirectUri(clientSession.getRedirectUri());
     entity.setTimestamp(clientSession.getTimestamp());
     return entity;

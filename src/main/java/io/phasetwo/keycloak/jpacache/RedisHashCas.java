@@ -52,7 +52,7 @@ redis.call("HINCRBY", KEYS[1], "version", 1)
 -- Optional expiration
 local expireAt = ARGV[2]
 if expireAt and expireAt ~= "" and expireAt ~= "0" then
-   -- redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
+   redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
 end
 
 return 1
