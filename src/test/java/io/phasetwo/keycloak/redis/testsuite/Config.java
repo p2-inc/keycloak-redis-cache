@@ -117,23 +117,20 @@ public class Config implements ConfigProvider {
       super(prefix);
     }
 
-    //This killed compatibility
     @Override
     public String get(String key) {
-        String v = System.getProperty(this.prefix + key, (String)null);
+        String fullKey = prefix + key;
+        String v = replaceProperties(getConfig().get(fullKey));
         if (v == null || v.isEmpty()) {
-            v = System.getProperty("keycloak." + prefix + key);
+            v = System.getProperty("keycloak." + fullKey);
         }
         return v != null && !v.isEmpty() ? v : null;
     }
 
     @Override
     public String get(String key, String defaultValue) {
-      String v = replaceProperties(getConfig().get(prefix + key));
-      if (v == null || v.isEmpty()) {
-        v = System.getProperty("keycloak." + prefix + key, defaultValue);
-      }
-      return v != null && !v.isEmpty() ? v : null;
+        String v = get(key);
+        return v != null ? v : defaultValue;
     }
 
     @Override

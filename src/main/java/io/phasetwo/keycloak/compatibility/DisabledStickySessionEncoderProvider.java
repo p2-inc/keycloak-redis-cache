@@ -38,40 +38,36 @@ import java.util.Objects;
 public class DisabledStickySessionEncoderProvider
     implements StickySessionEncoderProviderFactory, StickySessionEncoderProvider, IsSupported {
 
-    private static final char SEPARATOR = '.';
-
   @Override
   public StickySessionEncoderProvider create(KeycloakSession session) {
     return createProviderCached(session, StickySessionEncoderProvider.class, () -> this);
   }
 
   @Override
-  public String encodeSessionId(String message, String sessionId) {
-      Objects.requireNonNull(message);
-      String route = sessionIdRoute(sessionId);
-      return route == null ? message : message + SEPARATOR + route;
+  public String encodeSessionId(String sessionId, String route) {
+      return sessionId;
   }
 
-  @Override
-  public SessionIdAndRoute decodeSessionIdAndRoute(String encodedSessionId) {
-      int index = encodedSessionId.indexOf(SEPARATOR);
-      int length = encodedSessionId.length();
-      if (index == -1 || index == (length - 1)) {
-          //route not present
-          return new SessionIdAndRoute(encodedSessionId, null);
-      }
-      return new SessionIdAndRoute(encodedSessionId.substring(0, index), encodedSessionId.substring(index + 1, length));
-  }
+    @Override
+    public String decodeSessionId(String encodedSessionId) {
+        return encodedSessionId;
+    }
+
+    @Override
+    public String sessionIdRoute(String sessionId) {
+        return null;
+    }
+
+    @Override
+    public StickySessionEncoderProvider.SessionIdAndRoute decodeSessionIdAndRoute(String encodedSessionId) {
+        return new SessionIdAndRoute(encodedSessionId, null);
+    }
 
   @Override
   public boolean shouldAttachRoute() {
     return false;
   }
 
-  @Override
-  public String sessionIdRoute(String s) {
-      return null;
-  }
 
   @Override
   public void setShouldAttachRoute(boolean shouldAttachRoute) {}
