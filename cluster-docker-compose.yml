@@ -118,7 +118,7 @@ services:
       replicas: 3
     entrypoint: /opt/keycloak/bin/kc.sh --verbose start
     volumes:
-      - ${PWD}/target/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-jpa-cache-0.1-SNAPSHOT-withdeps.jar
+      - ${PWD}/target/keycloak-redis-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-redis-0.1-SNAPSHOT-withdeps.jar
     environment:
       KC_HTTP_PORT: 8080
       KC_HTTP_ENABLED: "true"
@@ -149,7 +149,7 @@ services:
       KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "valkey-node-1:6379,valkey-node-2:6379,valkey-node-3:6379"
 
       KC_CACHE: local
-      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.jpacache:TRACE
+      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.redis:TRACE
     depends_on:
       - cockroach
       - valkey-node-1

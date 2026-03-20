@@ -1,0 +1,44 @@
+package io.phasetwo.keycloak.redis.authSession;
+
+import io.phasetwo.keycloak.redis.AdapterSupplier;
+import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
+import java.util.Map;
+import org.keycloak.models.KeycloakSession;
+import redis.clients.jedis.UnifiedJedis;
+
+public class RootAuthenticationSessionAdapterSupplier
+    implements AdapterSupplier<
+        RootAuthenticationSessionKey, RedisRootAuthenticationSessionAdapter> {
+
+  private final KeycloakSession session;
+  private final UnifiedJedis jedis;
+  private final int authSessionsLimit;
+  private final RedisChangelogTransaction<
+          AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
+      authSessionTrx;
+
+  public RootAuthenticationSessionAdapterSupplier(
+      KeycloakSession session,
+      UnifiedJedis jedis,
+      int authSessionsLimit,
+      RedisChangelogTransaction<AuthenticationSessionKey, RedisAuthenticationSessionAdapter>
+          authSessionTrx) {
+    this.session = session;
+    this.jedis = jedis;
+    this.authSessionsLimit = authSessionsLimit;
+    this.authSessionTrx = authSessionTrx;
+  }
+
+  @Override
+  public RedisRootAuthenticationSessionAdapter newInstance(RootAuthenticationSessionKey key) {
+    return new RedisRootAuthenticationSessionAdapter(
+        session, jedis, authSessionsLimit, authSessionTrx, key.realmId(), key.id());
+  }
+
+  @Override
+  public RedisRootAuthenticationSessionAdapter newInstance(
+      RootAuthenticationSessionKey key, Map<String, String> data) {
+    return new RedisRootAuthenticationSessionAdapter(
+        session, jedis, authSessionsLimit, authSessionTrx, key.realmId(), key.id(), data);
+  }
+}
