@@ -257,7 +257,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
   private Stream<RedisUserSessionAdapter> getUserSessionsStreamByIndexKey(
       String[] indexKeys, RealmModel realm, boolean offline) {
-    log.debugf("[redis] SMEMBERS %s", indexKeys);
+    log.tracef("[redis] SMEMBERS %s", indexKeys);
     try (Pipeline pipeline = (Pipeline) jedis.pipelined()) {
       List<Response<Set<String>>> responses = Lists.newArrayList();
 
@@ -304,7 +304,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef("getUserSessionsStream(%s, %s)%s", realm, client, getShortStackTrace());
 
     String indexKey = String.format("authenticated-client:client-index:%s", client.getId());
-    log.debugf("[redis] SMEMBERS %s", indexKey);
+    log.tracef("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
       return strIds.stream()
@@ -646,7 +646,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
     log.tracef("getOfflineSessionsCount(%s, %s)%s", realm, client, getShortStackTrace());
 
     String indexKey = String.format("authenticated-client:client-index:%s", client.getId());
-    log.debugf("[redis] SMEMBERS %s", indexKey);
+    log.tracef("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
       return strIds.stream()
@@ -671,7 +671,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
         realm, client, firstResult, maxResults, getShortStackTrace());
 
     String indexKey = String.format("authenticated-client:client-index:%s", client.getId());
-    log.debugf("[redis] SMEMBERS %s", indexKey);
+    log.tracef("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = Sets.newTreeSet(jedis.smembers(indexKey)); // for consistent sorting
     if (!strIds.isEmpty()) {
       return strIds.stream()
