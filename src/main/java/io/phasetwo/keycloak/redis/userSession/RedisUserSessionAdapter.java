@@ -74,7 +74,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
     // affecting testOnClientRemoved
 
     String indexKey = String.format("authenticated-client:parent-index:%s", getId());
-    log.debugf("[redis] SMEMBERS %s", indexKey);
+    log.tracef("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = jedis.smembers(indexKey);
     if (strIds != null && !strIds.isEmpty()) {
       clientSessions =

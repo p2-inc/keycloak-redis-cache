@@ -183,7 +183,8 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void close() {
-    if (clusterPubsub != null && clusterPubsub.isSubscribed()) {
+    /*
+      if (clusterPubsub != null && clusterPubsub.isSubscribed()) {
       log.debugf("Unsubscribing from pubsub %s", CHANNEL_NAME);
       try {
         clusterPubsub.unsubscribe();
@@ -191,5 +192,6 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
         log.warn("Error unsubscribing from cluster pubsub", e);
       }
     }
+    */
   }
 }
