@@ -16,13 +16,16 @@ Put simply, the largest operational problem we have with Keycloak among all of o
 
 Furthermore, we've found that running Keycloak at medium to high scale requires, at minimum, using external Infinispan. An Infinispan cluster is hard to operate, even with all of the awesome operators and tools that team has built. And, this configuration for Keycloak and Infinispan is poorly documented and highly complex to get right. Furthermore, upgrading Infinispan itself is a daunting and error-prone task.
 
+Most customers are already using Redis or Valkey, or one of the many cloud provider managed solutions. I once asked an interview question that went something like, "Can you suggest the best infrastructure choices to solve ...?". A particularly wise candidate replied, "The infrastructure you're already running".
+
 This extension attempts to solve the problems of:
 - Failed restarts/updates of Keycloak with embedded Infinispan because of JGroups incompatibility or other shennanigans.
 - Slow startup because of JGroups/Infinispan discovery and rebalance. 
-
-We've also been working on a multi-region, active-active story for Keycloak over the last 3 years since we ported it to run on [CockroachDB](https://quay.io/repository/phasetwo/keycloak-crdb). We think that a combination of that and a flexible cache replacement like Redis could be a great solution.
-
-Most customers are already using Redis or Valkey, or one of the many cloud provider managed solutions. I once asked an interview question that went something like, "Can you suggest the best infrastructure choices to solve ...?". A particularly wise candidate replied, "The infrastructure you're already running".
+- Split brain because of network partitions or other Infinispan unknowns.
+- Use of managed cached backends such as AWS ElastiCache.
+- No downtime upgrades.
+  
+We've also been working on a multi-region, active-active story for Keycloak since we ported it to run on [CockroachDB](https://quay.io/repository/phasetwo/keycloak-crdb). We think that a combination of that and a flexible cache replacement like Redis could be a great solution.
 
 ## How to use
 
@@ -67,7 +70,7 @@ KC_SPI_REDIS_CONNECTION_DEFAULT_NODES=redis-1:6379,redis-2:6379,redis-3:6379
 
 You can currently try after building with the included `docker-compose.yml` file. Just run `docker compose up` after building the extension with Maven. There are a few permutations of docker-compose files that are used for testing different Keycloak and Redis topologies.
 
-A pre-build docker image is also available at (https://quay.io/repository/phasetwo/keycloak-redis).
+A pre-built docker image is also available at (https://quay.io/repository/phasetwo/keycloak-redis).
 
 ## Details and known issues
 
@@ -81,6 +84,12 @@ A pre-build docker image is also available at (https://quay.io/repository/phaset
 - Some tests are still skipped or failing. We need to understand if this is because the test fails to do everything in a single transaction (Keycloak doesn't do this internally) or if there is something we are missing.
 - ~~Hasn't been benchmarked to look for issues under load.~~
 - ~~You should probably enable sticky sessions on your load balancer, although we need to substantiate this with testing.~~
+
+## Support
+
+If you have been testing this and found an issue, please file an [issue](https://github.com/p2-inc/keycloak-redis-cache/issues) and a [pull request](https://github.com/p2-inc/keycloak-redis-cache/pulls) if you are able to identify and remediate the bug.
+
+Commercial support for existing customers can be accessed through the normal support ticket system. Others with interest in commercial support for Keycloak, in the cloud or on-prem should contact [sales@phasetwo.io](mailto:sales@phasetwo.io).
 
 -----
 
@@ -97,3 +106,7 @@ All other documentation, source code and other files in this repository are Copy
 Currently the source code is licensed under the [Elastic License 2.0](COPYING), in line with the rest of our extensions. If there is a legitimate interest on the part of the Keycloak maintainer team to bring this into core, we are willing to modify the license to Apache License 2.0.
 
 If you are a commercial entity that would like to discuss alternate licensing, please contact us at [sales@phasetwo.io](mailto:sales@phasetwo.io).
+
+### Contributing
+
+All contributions submitted to this project by pull request become the property of Phase Two, Inc. By submitting a contribution, you represent and warrant that you have the legal right to make the contribution and that the contributed code and any accompanying documentation were created solely by you. Contributions produced with the assistance of AI coding agents or other automated tools will not be accepted.
