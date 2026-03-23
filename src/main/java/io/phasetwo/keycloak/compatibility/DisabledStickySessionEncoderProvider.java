@@ -28,8 +28,6 @@ import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.sessions.StickySessionEncoderProvider;
 import org.keycloak.sessions.StickySessionEncoderProviderFactory;
 
-import java.util.Objects;
-
 /**
  * Identical with "disabled"-provider from map storage days but without environment dependent
  * activation
@@ -45,29 +43,29 @@ public class DisabledStickySessionEncoderProvider
 
   @Override
   public String encodeSessionId(String sessionId, String route) {
-      return sessionId;
+    return sessionId;
   }
 
-    @Override
-    public String decodeSessionId(String encodedSessionId) {
-        return encodedSessionId;
-    }
+  @Override
+  public String decodeSessionId(String encodedSessionId) {
+    return encodedSessionId;
+  }
 
-    @Override
-    public String sessionIdRoute(String sessionId) {
-        return null;
-    }
+  @Override
+  public String sessionIdRoute(String sessionId) {
+    return null;
+  }
 
-    @Override
-    public StickySessionEncoderProvider.SessionIdAndRoute decodeSessionIdAndRoute(String encodedSessionId) {
-        return new SessionIdAndRoute(encodedSessionId, null);
-    }
+  @Override
+  public StickySessionEncoderProvider.SessionIdAndRoute decodeSessionIdAndRoute(
+      String encodedSessionId) {
+    return new SessionIdAndRoute(encodedSessionId, null);
+  }
 
   @Override
   public boolean shouldAttachRoute() {
     return false;
   }
-
 
   @Override
   public void setShouldAttachRoute(boolean shouldAttachRoute) {}

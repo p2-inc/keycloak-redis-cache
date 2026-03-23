@@ -1,35 +1,36 @@
 //
-//package io.phasetwo.keycloak.compatibility;
+// package io.phasetwo.keycloak.compatibility;
 //
-//import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
-//import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
+// import static io.phasetwo.keycloak.common.Constants.PROVIDER_PRIORITY;
+// import static io.phasetwo.keycloak.common.ProviderHelpers.createProviderCached;
 //
-//import com.google.auto.service.AutoService;
-//import io.phasetwo.keycloak.common.IsSupported;
-//import java.util.concurrent.CompletionStage;
-//import java.util.concurrent.ScheduledExecutorService;
-//import lombok.extern.jbosslog.JBossLog;
-//import org.infinispan.Cache;
-//import org.infinispan.client.hotrod.RemoteCache;
-//import org.infinispan.util.concurrent.BlockingManager;
-//import org.keycloak.Config;
-//import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
-//import org.keycloak.connections.infinispan.InfinispanConnectionProviderFactory;
-//import org.keycloak.connections.infinispan.NodeInfo;
-//import org.keycloak.connections.infinispan.TopologyInfo;
-//import org.keycloak.models.KeycloakSession;
-//import org.keycloak.models.KeycloakSessionFactory;
+// import com.google.auto.service.AutoService;
+// import io.phasetwo.keycloak.common.IsSupported;
+// import java.util.concurrent.CompletionStage;
+// import java.util.concurrent.ScheduledExecutorService;
+// import lombok.extern.jbosslog.JBossLog;
+// import org.infinispan.Cache;
+// import org.infinispan.client.hotrod.RemoteCache;
+// import org.infinispan.util.concurrent.BlockingManager;
+// import org.keycloak.Config;
+// import org.keycloak.connections.infinispan.InfinispanConnectionProvider;
+// import org.keycloak.connections.infinispan.InfinispanConnectionProviderFactory;
+// import org.keycloak.connections.infinispan.NodeInfo;
+// import org.keycloak.connections.infinispan.TopologyInfo;
+// import org.keycloak.models.KeycloakSession;
+// import org.keycloak.models.KeycloakSessionFactory;
 //
-//@JBossLog
-//@AutoService(InfinispanConnectionProviderFactory.class)
-//public class NullQuarkusInfinispanConnectionProviderFactory
+// @JBossLog
+// @AutoService(InfinispanConnectionProviderFactory.class)
+// public class NullQuarkusInfinispanConnectionProviderFactory
 //        implements InfinispanConnectionProviderFactory,
 //                IsSupported {
 //
 //    @Override
 //    public InfinispanConnectionProvider create(KeycloakSession session) {
 //        return createProviderCached(
-//                session, InfinispanConnectionProvider.class, () -> new InfinispanConnectionProvider() {
+//                session, InfinispanConnectionProvider.class, () -> new
+// InfinispanConnectionProvider() {
 //                    @Override
 //                    public <K, V> Cache<K, V> getCache(String s) {
 //                        return null;
@@ -95,4 +96,4 @@
 //    public String getId() {
 //        return "quarkus";
 //    }
-//}
+// }

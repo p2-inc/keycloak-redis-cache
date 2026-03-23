@@ -10,7 +10,6 @@ import java.util.Locale;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.infinispan.distribution.topologyaware.TopologyInfo;
 import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
