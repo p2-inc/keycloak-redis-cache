@@ -1,6 +1,7 @@
 package io.phasetwo.keycloak.redis.userSession;
 
 import static io.phasetwo.keycloak.common.ExpirationUtils.isExpired;
+import static io.phasetwo.keycloak.redis.userSession.expiration.RedisSessionExpiration.setUserSessionExpiration;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -13,6 +14,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.*;
@@ -29,7 +32,6 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
       clientSessionTrx;
 
   private Map<String, AuthenticatedClientSessionModel> clientSessions = Maps.newHashMap();
-  private boolean clientSessionsInitialized = false;
 
   public RedisUserSessionAdapter(
       KeycloakSession session,
@@ -70,8 +72,6 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
 
   @Override
   public Map<String, AuthenticatedClientSessionModel> getAuthenticatedClientSessions() {
-    //    if (clientSessionsInitialized) return clientSessions;  -- Not updated correctly. Was
-    // affecting testOnClientRemoved
 
     String indexKey = String.format("authenticated-client:parent-index:%s", getId());
     log.tracef("[redis] SMEMBERS %s", indexKey);
@@ -90,7 +90,6 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
                       RedisAuthenticatedClientSessionAdapter::getClientUuid,
                       s -> (AuthenticatedClientSessionModel) s));
     }
-    clientSessionsInitialized = true;
     return clientSessions;
   }
 
@@ -232,6 +231,8 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   @Override
   public void setLastSessionRefresh(int lastSessionRefresh) {
     setField("lastSessionRefresh", lastSessionRefresh);
+
+    setUserSessionExpiration(this, SessionExpirationData.builder().realm(getRealm()).build());
   }
 
   @Override
