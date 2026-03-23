@@ -59,11 +59,11 @@ public class DefaultRedisConnectionProviderFactory
 
   @Override
   public void init(Config.Scope scope) {
-    String modeValue = scope.get("mode");
+    String modeValue = scope.get("mode", "TopologyInfo.Node");
     mode = parseMode(modeValue);
     log.tracef("mode: %s", mode);
 
-    String nodesValue = scope.get("nodes");
+    String nodesValue = scope.get("nodes", "redis:6379");
     nodes = parseNodes(nodesValue);
     log.tracef("nodes: %s", nodes);
 

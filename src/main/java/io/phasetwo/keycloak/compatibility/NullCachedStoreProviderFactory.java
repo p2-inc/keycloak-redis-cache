@@ -231,20 +231,22 @@ public class NullCachedStoreProviderFactory implements CachedStoreProviderFactor
                   @Override
                   public Stream<Policy> findDependentPolicies(
                       ResourceServer resourceServer,
-                      String resourceType,
-                      String associatedPolicyType,
-                      String configKey,
-                      String configValue) {
+                      String s,
+                      String s1,
+                      String s2,
+                      String s3,
+                      String s4) {
                     return Stream.empty();
                   }
 
                   @Override
                   public Stream<Policy> findDependentPolicies(
                       ResourceServer resourceServer,
-                      String resourceType,
-                      String associatedPolicyType,
-                      String configKey,
-                      List<String> configValues) {
+                      String s,
+                      String s1,
+                      String s2,
+                      String s3,
+                      List<String> list) {
                     return Stream.empty();
                   }
                 };

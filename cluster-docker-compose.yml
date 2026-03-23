@@ -108,7 +108,7 @@ services:
 
   # -------- Keycloak --------
   keycloak:
-    image: quay.io/phasetwo/keycloak-crdb:26.4.7
+    image: quay.io/phasetwo/keycloak-crdb:26.5.6
     ulimits:
       nofile:
         soft: 65536

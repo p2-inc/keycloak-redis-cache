@@ -42,13 +42,24 @@ public class DisabledStickySessionEncoderProvider
   }
 
   @Override
-  public String encodeSessionId(String sessionId) {
+  public String encodeSessionId(String sessionId, String route) {
     return sessionId;
   }
 
   @Override
   public String decodeSessionId(String encodedSessionId) {
     return encodedSessionId;
+  }
+
+  @Override
+  public String sessionIdRoute(String sessionId) {
+    return null;
+  }
+
+  @Override
+  public StickySessionEncoderProvider.SessionIdAndRoute decodeSessionIdAndRoute(
+      String encodedSessionId) {
+    return new SessionIdAndRoute(encodedSessionId, null);
   }
 
   @Override
