@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
+
+import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.AuthenticatedClientSessionModel;
@@ -14,6 +16,8 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserSessionModel;
+
+import static io.phasetwo.keycloak.redis.userSession.expiration.RedisSessionExpiration.setClientSessionExpiration;
 
 @JBossLog
 public class RedisAuthenticatedClientSessionAdapter extends MapEntity<AuthenticatedClientSessionKey>
@@ -105,6 +109,11 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public void setTimestamp(int timestamp) {
     setField("timestamp", timestamp);
+    var data = (RedisUserSessionAdapter) this.getUserSession();
+    setClientSessionExpiration(this,
+            SessionExpirationData.builder().realm(getRealm()).build(),
+            getClient(),
+            data.isOffline());
   }
 
   @Override
