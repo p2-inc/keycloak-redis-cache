@@ -183,13 +183,13 @@ public class RedisPubsubClusterProvider implements ClusterProvider {
 
   @Override
   public void close() {
-    if (clusterPubsub != null && clusterPubsub.isSubscribed()) {
-      log.debugf("Unsubscribing from pubsub %s", CHANNEL_NAME);
-      try {
-        clusterPubsub.unsubscribe();
-      } catch (Exception e) {
-        log.warn("Error unsubscribing from cluster pubsub", e);
-      }
-    }
+//    if (clusterPubsub != null && clusterPubsub.isSubscribed()) {
+//      log.debugf("Unsubscribing from pubsub %s", CHANNEL_NAME);
+//      try {
+//        clusterPubsub.unsubscribe();
+//      } catch (Exception e) {
+//        log.warn("Error unsubscribing from cluster pubsub", e);
+//      }
+//    }
   }
 }
