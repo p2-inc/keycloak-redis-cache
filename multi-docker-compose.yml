@@ -25,14 +25,14 @@ services:
     volumes:
       - valkey_data:/data
   keycloak:
-    image: quay.io/phasetwo/keycloak-crdb:26.5.5
+    image: quay.io/phasetwo/keycloak-crdb:26.5.6
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     deploy:
       mode: replicated
-      replicas: 3
+      replicas: 1
     volumes:
       - ${PWD}/target/keycloak-redis-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-redis-0.1-SNAPSHOT-withdeps.jar
     environment:
