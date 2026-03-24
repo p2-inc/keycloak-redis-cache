@@ -133,6 +133,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   @Test
   @Ignore("multiple transactions")
   public void testExpiredClientSessions() {
+      AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
     UserSessionModel[] origSessions =
         inComittedTransaction(
             session -> {
@@ -140,7 +141,8 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
               return createSessions(session, realmId);
             });
 
-    AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
+
+
     clientSessionIds.set(
         origSessions[0].getAuthenticatedClientSessions().values().stream()
             .map(AuthenticatedClientSessionModel::getId)
@@ -1249,7 +1251,6 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   }
 
   @Test
-  @Ignore("not from the orginal Keycloak set of tests.")
   public void testRemoveSessions() {
     String sessionId =
         withRealm(
