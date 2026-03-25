@@ -131,20 +131,24 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   }
 
   @Test
-  @Ignore("multiple transactions")
+ // @Ignore("multiple transactions")
   public void testExpiredClientSessions() {
+      AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
     UserSessionModel[] origSessions =
         inComittedTransaction(
             session -> {
               // create some user and client sessions
               return createSessions(session, realmId);
             });
-
-    AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
-    clientSessionIds.set(
-        origSessions[0].getAuthenticatedClientSessions().values().stream()
-            .map(AuthenticatedClientSessionModel::getId)
-            .collect(Collectors.toList()));
+    var clientIds = withRealm(
+              realmId,
+              (s, realm) -> s.sessions()
+                       .getUserSession(realm, origSessions[0].getId())
+                       .getAuthenticatedClientSessions().values().stream()
+                       .map(AuthenticatedClientSessionModel::getId)
+                       .collect(Collectors.toList())
+    );
+    clientSessionIds.set(clientIds);
 
     inComittedTransaction(
         session -> {
@@ -152,7 +156,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
           UserSessionModel userSession =
               session.sessions().getUserSession(realm, origSessions[0].getId());
-          Assert.assertEquals(origSessions[0], userSession);
+          areEntitiesEqual(origSessions[0], userSession);
 
           AuthenticatedClientSessionModel clientSession =
               session
@@ -160,20 +164,20 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
                   .getClientSession(
                       userSession,
                       realm.getClientByClientId("test-app"),
-                      origSessions[0]
+                         session.sessions().getUserSession(realm, origSessions[0].getId())
                           .getAuthenticatedClientSessionByClient(
                               realm.getClientByClientId("test-app").getId())
                           .getId(),
                       false);
           Assert.assertEquals(
-              origSessions[0]
+                session.sessions().getUserSession(realm, origSessions[0].getId())
                   .getAuthenticatedClientSessionByClient(
                       realm.getClientByClientId("test-app").getId())
                   .getId(),
               clientSession.getId());
 
           userSession = session.sessions().getUserSession(realm, origSessions[1].getId());
-          Assert.assertEquals(origSessions[1], userSession);
+          areEntitiesEqual(origSessions[1], userSession);
         });
 
     // not possible to expire client session without expiring user sessions with time offset in map
@@ -201,7 +205,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
           // assert the user session is still there
           UserSessionModel userSession =
               session.sessions().getUserSession(realm, origSessions[0].getId());
-          Assert.assertEquals(origSessions[0], userSession);
+          areEntitiesEqual(origSessions[0], userSession);
 
           // assert the client sessions are expired
           clientSessionIds
@@ -1249,7 +1253,6 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   }
 
   @Test
-  @Ignore("not from the orginal Keycloak set of tests.")
   public void testRemoveSessions() {
     String sessionId =
         withRealm(
@@ -1394,7 +1397,7 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
 
   @SuppressWarnings("removal")
   @Test
-  @Ignore("multiple transactions")
+  @Ignore("Not used")
   public void testImportUserSessions() {
     withRealm(realmId, (s, realm) -> s.clients().addClient(realm, "clientId"));
     UserSessionModel userSession1 =
