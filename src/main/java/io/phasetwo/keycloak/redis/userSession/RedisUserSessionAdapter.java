@@ -82,7 +82,7 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
               .map(AuthenticatedClientSessionKey::fromString)
               .map(clientSessionTrx::getIfPresent)
               .filter(Objects::nonNull)
-              .filter(this::filterAndRemoveExpiredClientSessions)
+              //.filter(this::filterAndRemoveExpiredClientSessions)
               .filter(this::matchingOfflineFlag)
               .filter(this::filterAndRemoveClientSessionWithoutClient)
               .collect(
