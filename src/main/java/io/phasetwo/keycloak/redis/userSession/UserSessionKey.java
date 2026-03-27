@@ -1,11 +1,16 @@
 package io.phasetwo.keycloak.redis.userSession;
 
 import io.phasetwo.keycloak.redis.Key;
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 
 public record UserSessionKey(String id) implements Key {
   @Override
   public String key() {
-    return String.format("user-session:%s", id);
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          return String.format("user-session:{%s}", id);
+      } else {
+          return String.format("user-session:%s", id);
+      }
   }
 
   public static UserSessionKey fromString(String strKey) {

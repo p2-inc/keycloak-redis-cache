@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
@@ -41,8 +42,14 @@ public class RedisAuthenticatedClientSessionAdapter extends MapEntity<Authentica
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    siPut(b, "authenticated-client:parent-index:%s", getParentId(), getKey().key());
-    siPut(b, "authenticated-client:client-index:%s", getClientUuid(), getKey().key());
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          siPut(b, "authenticated-client:parent-index:{%s}", getParentId(), getKey().key());
+          siPut(b, "authenticated-client:client-index:{%s}", getClientUuid(), getKey().key());
+      } else {
+          siPut(b, "authenticated-client:parent-index:%s", getParentId(), getKey().key());
+          siPut(b, "authenticated-client:client-index:%s", getClientUuid(), getKey().key());
+      }
+
     return b.build();
   }
 

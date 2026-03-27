@@ -3,6 +3,8 @@ package io.phasetwo.keycloak.redis.loginFailure;
 import com.google.common.collect.ImmutableMap;
 import io.phasetwo.keycloak.redis.MapEntity;
 import java.util.Map;
+
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 import org.keycloak.models.UserLoginFailureModel;
 
 public class RedisUserLoginFailureAdapter extends MapEntity<LoginFailureKey>
@@ -22,7 +24,12 @@ public class RedisUserLoginFailureAdapter extends MapEntity<LoginFailureKey>
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    siPut(b, "login-failure:index:%s", getRealmId(), getUserId());
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          siPut(b, "login-failure:index:{%s}", getRealmId(), getUserId());
+      } else {
+          siPut(b, "login-failure:index:%s", getRealmId(), getUserId());
+      }
+
     return b.build();
   }
 

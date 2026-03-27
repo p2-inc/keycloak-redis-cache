@@ -32,7 +32,7 @@ public class DefaultRedisConnectionProviderFactory
   public static final String PROVIDER_ID = "default";
 
   private static UnifiedJedis jedisClient;
-  private static RedisMode mode = RedisMode.STANDALONE;
+  public  static RedisMode mode = RedisMode.STANDALONE;
   private static Set<HostAndPort> nodes = Set.of();
   private static JedisClientConfig clientConfig;
   private static GenericObjectPoolConfig<Connection> poolConfig;
@@ -236,6 +236,10 @@ public class DefaultRedisConnectionProviderFactory
   @Override
   public String getId() {
     return PROVIDER_ID;
+  }
+
+  public static boolean isCluster(){
+      return mode == RedisMode.CLUSTER;
   }
 
   @Override

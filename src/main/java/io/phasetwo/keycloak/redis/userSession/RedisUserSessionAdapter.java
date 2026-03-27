@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
@@ -61,12 +62,23 @@ public class RedisUserSessionAdapter extends MapEntity<UserSessionKey>
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    siPut(b, "user-session:realm-index:%s", getRealmId(), getKey().key());
-    siPut(b, "user-session:user-index:%s", getUserId(), getKey().key());
-    siPut(b, "user-session:broker-user-index:%s", getBrokerUserId(), getKey().key());
-    siPut(b, "user-session:broker-session-index:%s", getBrokerSessionId(), getKey().key());
-    String csi = getNote(CORRESPONDING_SESSION_ID);
-    siPut(b, "user-session:corresponding-session-index:%s", csi, getKey().key());
+     if (DefaultRedisConnectionProviderFactory.isCluster()) {
+         siPut(b, "user-session:realm-index:{%s}", getRealmId(), getKey().key());
+         siPut(b, "user-session:user-index:{%s}", getUserId(), getKey().key());
+         siPut(b, "user-session:broker-user-index:{%s}", getBrokerUserId(), getKey().key());
+         siPut(b, "user-session:broker-session-index:{%s}", getBrokerSessionId(), getKey().key());
+         String csi = getNote(CORRESPONDING_SESSION_ID);
+         siPut(b, "user-session:corresponding-session-index:{%s}", csi, getKey().key());
+     } else {
+         siPut(b, "user-session:realm-index:%s", getRealmId(), getKey().key());
+         siPut(b, "user-session:user-index:%s", getUserId(), getKey().key());
+         siPut(b, "user-session:broker-user-index:%s", getBrokerUserId(), getKey().key());
+         siPut(b, "user-session:broker-session-index:%s", getBrokerSessionId(), getKey().key());
+         String csi = getNote(CORRESPONDING_SESSION_ID);
+         siPut(b, "user-session:corresponding-session-index:%s", csi, getKey().key());
+     }
+
+
     return b.build();
   }
 

@@ -5,6 +5,8 @@ import io.phasetwo.keycloak.redis.MapEntity;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
@@ -37,7 +39,12 @@ public class RedisAuthenticationSessionAdapter extends MapEntity<AuthenticationS
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    siPut(b, "auth-session:parent:%s", getString("parentId"), getKey().key());
+
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          siPut(b, "auth-session:parent:{%s}", getString("parentId"), getKey().key());
+      } else {
+          siPut(b, "auth-session:parent:%s", getString("parentId"), getKey().key());
+      }
     return b.build();
   }
 

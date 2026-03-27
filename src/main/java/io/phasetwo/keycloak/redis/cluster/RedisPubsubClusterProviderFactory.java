@@ -20,7 +20,7 @@ import redis.clients.jedis.params.SetParams;
 
 @JBossLog
 @SuppressWarnings("rawtypes")
-@AutoService(ClusterProviderFactory.class)
+//@AutoService(ClusterProviderFactory.class)
 public class RedisPubsubClusterProviderFactory implements ClusterProviderFactory, IsSupported {
 
   private static final String CLUSTER_START_KEY = "kc:cluster:startTime";
