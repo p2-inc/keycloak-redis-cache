@@ -1,11 +1,16 @@
 package io.phasetwo.keycloak.redis.authSession;
 
 import io.phasetwo.keycloak.redis.Key;
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 
 public record RootAuthenticationSessionKey(String realmId, String id) implements Key {
   @Override
   public String key() {
-    return String.format("root-auth-session:%s:%s", realmId, id);
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          return String.format("root-auth-session:{%s:%s}", realmId, id);
+      } else {
+          return String.format("root-auth-session:%s:%s", realmId, id);
+      }
   }
 
   public static RootAuthenticationSessionKey fromString(String strKey) {

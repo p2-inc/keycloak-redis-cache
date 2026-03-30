@@ -179,14 +179,9 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     }
 
     String[] kw = keysToWatch.toArray(new String[0]);
-    if (kw == null || kw.length == 0) {
+    if (kw.length == 0) {
       log.trace("nothing to WATCH. skipping transaction...");
-      return; // nothing to do?
-    } else {
-      // don't WATCH because of CAS
-      // log.tracef("[redis] WATCH %s", kw);
-      // jedis.watch(kw);
-      // countOperation(WATCH);
+      return;
     }
 
     // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
@@ -216,27 +211,8 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
             // hset the new/changed values
             if (model instanceof ExpirableEntity) {
-              ExpirableEntity e = (ExpirableEntity) model;
-              expireAtMs = e.getExpiration();
-              // log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key,
-              // updates);
-              // jedis 7.1.0
-              /*
-              txn.hsetex(
-                  key,
-                  HSetExParams.hSetExParams().pxAt(e.getExpiration()),
-                  updates); // todo need to check for expiration null
-              */
-              /*
-              // jedis 5.1.0
-              txn.hset(key, updates);
-              txn.pexpireAt(key, e.getExpiration());
-              */
-              // countOperation(HSETEX);
-            } else {
-              // log.tracef("[redis] HSET %s %s", key, updates);
-              // txn.hset(key, updates);
-              // countOperation(HSETEX);
+                ExpirableEntity e = (ExpirableEntity) model;
+                expireAtMs = e.getExpiration();
             }
             // using redis CAS function
             RedisHashCas cas = new RedisHashCas(txn);

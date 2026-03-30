@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # --- REDIS DATA NODES ---
+  redis-master:
+    image: redis:7-alpine
+    container_name: redis-master
+    command: redis-server --appendonly yes
+    networks:
+      - redis-mesh
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica-1:
+    image: redis:7-alpine
+    container_name: redis-replica-1
+    command: redis-server --replicaof redis-master 6379 --appendonly yes
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-mesh
+
+  redis-replica-2:
+    image: redis:7-alpine
+    container_name: redis-replica-2
+    command: redis-server --replicaof redis-master 6379 --appendonly yes
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-mesh
+
+  # --- SENTINEL NODES ---
+  sentinel-1:
+    image: redis:7-alpine
+    container_name: sentinel-1
+    volumes:
+      - ./sentinel-conf/sentinel.conf:/etc/redis/sentinel.template.conf
+    command: >
+      sh -c "
+      cp /etc/redis/sentinel.template.conf /etc/redis/sentinel.conf &&
+      chmod 666 /etc/redis/sentinel.conf &&
+      until getent hosts redis-master; do
+        echo 'Waiting for redis-master DNS...';
+        sleep 2;
+      done;
+      redis-server /etc/redis/sentinel.conf --sentinel"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-mesh
+
+  sentinel-2:
+    image: redis:7-alpine
+    container_name: sentinel-2
+    volumes:
+      - ./sentinel-conf/sentinel.conf:/etc/redis/sentinel.template.conf
+    command: >
+      sh -c "
+      cp /etc/redis/sentinel.template.conf /etc/redis/sentinel.conf &&
+      chmod 666 /etc/redis/sentinel.conf &&
+      until getent hosts redis-master; do
+        sleep 2;
+      done;
+      redis-server /etc/redis/sentinel.conf --sentinel"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-mesh
+
+  sentinel-3:
+    image: redis:7-alpine
+    container_name: sentinel-3
+    volumes:
+      - ./sentinel-conf/sentinel.conf:/etc/redis/sentinel.template.conf
+    command: >
+      sh -c "
+      cp /etc/redis/sentinel.template.conf /etc/redis/sentinel.conf &&
+      chmod 666 /etc/redis/sentinel.conf &&
+      until getent hosts redis-master; do
+        sleep 2;
+      done;
+      redis-server /etc/redis/sentinel.conf --sentinel"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    networks:
+      - redis-mesh
+
+  # --- APPLICATION ---
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.6
+    volumes:
+      - h2_data:/opt/keycloak/data
+      - ./target/keycloak-redis-0.1-SNAPSHOT-withdeps.jar:/opt/keycloak/providers/keycloak-redis-0.1-SNAPSHOT-withdeps.jar
+    environment:
+      KC_DB_USERNAME: "sa"
+      KC_COMMUNITY_REDIS_CACHE_ENABLED: true
+      KC_SPI_REDIS_CONNECTION_DEFAULT_MODE: "sentinel"
+      KC_SPI_REDIS_CONNECTION_DEFAULT_NODES: "sentinel-1:26379,sentinel-2:26379,sentinel-3:26379"
+      KC_CACHE: local
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_LOG_LEVEL: INFO,org.keycloak.STACK_TRACE:TRACE,io.phasetwo.keycloak.redis:TRACE
+      JAVA_OPTS: -agentlib:jdwp=transport=dt_socket,address=*:8787,server=y,suspend=n -Xms64m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true
+    ports:
+      - "8080:8080"
+      - "8787:8787"
+    entrypoint: [ "/opt/keycloak/bin/kc.sh", "start-dev" ]
+    depends_on:
+      sentinel-1:
+        condition: service_started
+    networks:
+      - redis-mesh
+
+  # --- UI ---
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    environment:
+      REDIS_HOSTS: local:redis-master:6379
+    ports:
+      - "18081:8081"
+    networks:
+      - redis-mesh
+
+networks:
+  redis-mesh:
+    driver: bridge
+
+volumes:
+  h2_data:
+    driver: local

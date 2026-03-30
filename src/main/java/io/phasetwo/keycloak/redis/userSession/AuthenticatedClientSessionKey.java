@@ -1,11 +1,17 @@
 package io.phasetwo.keycloak.redis.userSession;
 
 import io.phasetwo.keycloak.redis.Key;
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 
 public record AuthenticatedClientSessionKey(String id) implements Key {
   @Override
   public String key() {
-    return String.format("authenticated-client:%s", id);
+
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          return String.format("authenticated-client:{%s}", id);
+      } else {
+          return String.format("authenticated-client:%s", id);
+      }
   }
 
   public static AuthenticatedClientSessionKey fromString(String strKey) {

@@ -14,13 +14,7 @@ import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
-import redis.clients.jedis.Connection;
-import redis.clients.jedis.DefaultJedisClientConfig;
-import redis.clients.jedis.HostAndPort;
-import redis.clients.jedis.JedisClientConfig;
-import redis.clients.jedis.RedisClient;
-import redis.clients.jedis.RedisClusterClient;
-import redis.clients.jedis.UnifiedJedis;
+import redis.clients.jedis.*;
 import redis.clients.jedis.util.Pool;
 
 @JBossLog
@@ -32,7 +26,7 @@ public class DefaultRedisConnectionProviderFactory
   public static final String PROVIDER_ID = "default";
 
   private static UnifiedJedis jedisClient;
-  private static RedisMode mode = RedisMode.STANDALONE;
+  public  static RedisMode mode = RedisMode.STANDALONE;
   private static Set<HostAndPort> nodes = Set.of();
   private static JedisClientConfig clientConfig;
   private static GenericObjectPoolConfig<Connection> poolConfig;
@@ -213,6 +207,15 @@ public class DefaultRedisConnectionProviderFactory
           .build();
     }
 
+    if (mode == RedisMode.SENTINEL) {
+        return RedisSentinelClient.builder()
+                .masterName("mymaster")
+                .sentinels(nodes)
+                .clientConfig(clientConfig)
+                // .poolConfig(poolConfig)
+                .build();
+    }
+
     HostAndPort node = nodes.iterator().next();
     if (nodes.size() > 1) {
       log.warnf("Multiple nodes configured for %s; using %s", mode, node);
@@ -236,6 +239,10 @@ public class DefaultRedisConnectionProviderFactory
   @Override
   public String getId() {
     return PROVIDER_ID;
+  }
+
+  public static boolean isCluster(){
+      return mode == RedisMode.CLUSTER;
   }
 
   @Override

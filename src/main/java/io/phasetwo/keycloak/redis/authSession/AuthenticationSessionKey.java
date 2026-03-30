@@ -1,11 +1,16 @@
 package io.phasetwo.keycloak.redis.authSession;
 
 import io.phasetwo.keycloak.redis.Key;
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 
 public record AuthenticationSessionKey(String clientId, String tabId) implements Key {
   @Override
   public String key() {
-    return String.format("auth-session:%s:%s", clientId, tabId);
+      if (DefaultRedisConnectionProviderFactory.isCluster()) {
+          return String.format("auth-session:{%s:%s}", clientId, tabId);
+      } else {
+          return String.format("auth-session:%s:%s", clientId, tabId);
+      }
   }
 
   public static AuthenticationSessionKey fromString(String strKey) {

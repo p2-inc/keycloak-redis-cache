@@ -9,6 +9,8 @@ import io.phasetwo.keycloak.redis.MapEntity;
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import io.phasetwo.keycloak.redis.connection.DefaultRedisConnectionProviderFactory;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
 import org.keycloak.common.util.SecretGenerator;
@@ -63,7 +65,12 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
   @Override
   public Map<String, String> getSecondaryIndexes() {
     ImmutableMap.Builder<String, String> b = ImmutableMap.builder();
-    siPut(b, "root-auth-session:realm-index:%s", getRealmId(), getKey().key());
+    if (DefaultRedisConnectionProviderFactory.isCluster()) {
+        siPut(b, "root-auth-session:realm-index:{%s}", getRealmId(), getKey().key());
+    } else {
+        siPut(b, "root-auth-session:realm-index:%s", getRealmId(), getKey().key());
+    }
+
     return b.build();
   }
 
