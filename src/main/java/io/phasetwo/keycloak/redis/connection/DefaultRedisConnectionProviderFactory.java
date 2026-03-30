@@ -14,13 +14,7 @@ import org.keycloak.Config;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.provider.EnvironmentDependentProviderFactory;
-import redis.clients.jedis.Connection;
-import redis.clients.jedis.DefaultJedisClientConfig;
-import redis.clients.jedis.HostAndPort;
-import redis.clients.jedis.JedisClientConfig;
-import redis.clients.jedis.RedisClient;
-import redis.clients.jedis.RedisClusterClient;
-import redis.clients.jedis.UnifiedJedis;
+import redis.clients.jedis.*;
 import redis.clients.jedis.util.Pool;
 
 @JBossLog
@@ -211,6 +205,15 @@ public class DefaultRedisConnectionProviderFactory
           .clientConfig(clientConfig)
           // .poolConfig(poolConfig)
           .build();
+    }
+
+    if (mode == RedisMode.SENTINEL) {
+        return RedisSentinelClient.builder()
+                .masterName("mymaster")
+                .sentinels(nodes)
+                .clientConfig(clientConfig)
+                // .poolConfig(poolConfig)
+                .build();
     }
 
     HostAndPort node = nodes.iterator().next();

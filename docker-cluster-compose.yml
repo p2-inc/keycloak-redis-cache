@@ -158,7 +158,6 @@ services:
 
   redis-commander:
     image: rediscommander/redis-commander:latest
-    container_name: redis-commander-atdd
     environment:
       REDIS_HOSTS: cluster1:redis-cluster-1:6379,cluster2:redis-cluster-2:6379,cluster3:redis-cluster-3:6379
       HTTP_USER: admin

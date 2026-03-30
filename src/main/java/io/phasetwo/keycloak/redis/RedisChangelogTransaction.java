@@ -10,7 +10,6 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Tag;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -19,66 +18,13 @@ import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.AbstractPipeline;
+import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
 public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     extends AbstractKeycloakTransaction {
-
-  private static final String LUA_CAS_HSETEX =
-      """
--- KEYS[1] = hash key
--- ARGV[1] = expected version
--- ARGV[2] = expireAtMs (0 = no expire)
--- ARGV[3..n] = field/value pairs
-
-local currentVersion = redis.call('HGET', KEYS[1], 'version')
-
--- CREATE path
-if not currentVersion then
-   if ARGV[1] ~= '0' then
-      return -1 -- cannot create unless expectedVersion == 0
-   end
-   currentVersion = '0'
-end
-
--- CAS check
-if currentVersion ~= ARGV[1] then
-   return 0 -- version mismatch
-end
-
--- Must have at least one field/value pair
-if (#ARGV - 2) < 2 then
-   return -2
-end
-
--- Apply updates
-redis.call('HSET', KEYS[1], unpack(ARGV, 3))
-
--- Increment version
-redis.call('HINCRBY', KEYS[1], 'version', 1)
-
--- Optional expiration
-local expireAt = ARGV[2]
-if expireAt and expireAt ~= '' and expireAt ~= '0' then
-   redis.call('PEXPIREAT', KEYS[1], tonumber(expireAt))
-end
-
-return 1
-        """;
-
-  private static final String LUA_HDEL_FIELDS =
-      """
-if #ARGV == 0 then
-  return 0
-end
-return redis.call('HDEL', KEYS[1], unpack(ARGV))
-        """;
-
-  private static final String LUA_DEL_KEY = "redis.call('DEL', KEYS[1]); return 1";
-  private static final String LUA_SADD = "return redis.call('SADD', KEYS[1], ARGV[1])";
-  private static final String LUA_SREM = "return redis.call('SREM', KEYS[1], ARGV[1])";
 
   private final Map<K, A> cache = Maps.newHashMap();
   private final Map<K, A> toDelete = Maps.newHashMap();
@@ -218,121 +164,111 @@ return redis.call('HDEL', KEYS[1], unpack(ARGV))
 
   @Override
   protected void commitImpl() {
-    if (cache.isEmpty() && toDelete.isEmpty()) {
-      log.trace("nothing to commit");
-      return;
-    }
+    Set<String> keysToWatch = Sets.newHashSet();
 
-    // Apply updates and deletes for cache entries first
+    // Keys to watch: all affected session keys + index
     for (A model : cache.values()) {
-      String key = model.getKey().key();
-
-      if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
-        deleteEntry(key, model.getSecondaryIndexes());
-        toDelete.remove(model.getKey());
-        continue;
-      }
-
-      if (!model.isDirty()) {
-        continue;
-      }
-
-      // Write dirty fields using CAS + HSETEX via Lua
-      Map<String, String> updates = model.getDirtyFields();
-      Set<String> deletedFields = model.getDeletedFields();
-      if (!updates.isEmpty()) {
-        Long expireAtMs = null;
-        if (model instanceof ExpirableEntity) {
-          expireAtMs = ((ExpirableEntity) model).getExpiration();
-        }
-
-        long casResult = executeCasHsetex(key, model.getVersion(), expireAtMs, updates);
-        countOperation(HSETEX);
-
-        if (casResult != 1L) {
-          log.warnf("[redis] CAS hsetex failed (%d) for key=%s", casResult, key);
-          continue;
-        }
-      }
-
-      // Remove stale fields from hash by Lua HDEL
-      if (!deletedFields.isEmpty()) {
-        executeHdel(key, deletedFields);
-        countOperation(HDEL);
-      }
-
-      // Maintain secondary indexes (SADD, optional SREM happens only on full de-dupe delete path)
-      for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-        if (index.getKey() != null && index.getValue() != null) {
-          executeSadd(index.getKey(), index.getValue());
-          countOperation(SADD);
-        }
+      if (!toDelete.containsKey(model.getKey())) {
+        log.tracef("adding key to WATCH %s", model.getKey().key());
+        keysToWatch.add(model.getKey().key());
       }
     }
-
-    // Apply deletes for entries marked for deletion but not present in cache iteration
     for (A model : toDelete.values()) {
-      String key = model.getKey().key();
-      deleteEntry(key, model.getSecondaryIndexes());
+      log.tracef("adding key to WATCH %s", model.getKey().key());
+      keysToWatch.add(model.getKey().key());
     }
 
-    cache.clear();
-    toDelete.clear();
-  }
-
-  private long executeCasHsetex(
-      String key,
-      long expectedVersion,
-      Long expireAtMs,
-      Map<String, String> updates) {
-    if (updates == null || updates.isEmpty()) {
-      return 0;
-    }
-
-    List<String> keys = List.of(key);
-    List<String> args = new ArrayList<>();
-    args.add(String.valueOf(expectedVersion));
-    args.add(expireAtMs != null ? String.valueOf(expireAtMs) : "0");
-
-    updates.forEach(
-        (field, value) -> {
-          args.add(field);
-          args.add(value == null ? MapEntity.NULL_SENTINEL : value);
-        });
-
-    Object response = jedis.eval(LUA_CAS_HSETEX, keys, args);
-    if (response instanceof Number) {
-      return ((Number) response).longValue();
-    }
-
-    return RedisHashCas.NON_NUMERIC_RESPONSE_CODE;
-  }
-
-  private void executeHdel(String key, Collection<String> fields) {
-    if (fields == null || fields.isEmpty()) {
+    String[] kw = keysToWatch.toArray(new String[0]);
+    if (kw.length == 0) {
+      log.trace("nothing to WATCH. skipping transaction...");
       return;
     }
-    jedis.eval(LUA_HDEL_FIELDS, List.of(key), new ArrayList<>(fields));
-  }
 
-  private void executeSadd(String setKey, String member) {
-    jedis.eval(LUA_SADD, List.of(setKey), List.of(member));
-  }
+    // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
+    // need a
+    // separate Pipeline to reduce round trips inside a MULTI.
+    try (AbstractTransaction txn = jedis.multi()) {
+      List<RedisHashCas.CasInvocation> casInvocations = Lists.newArrayList();
 
-  private void executeSrem(String setKey, String member) {
-    jedis.eval(LUA_SREM, List.of(setKey), List.of(member));
-  }
+      for (A model : cache.values()) {
+        String key = model.getKey().key();
 
-  private void deleteEntry(String key, Map<String, String> secondaryIndexes) {
-    log.tracef("[redis] DEL %s", key);
-    jedis.eval(LUA_DEL_KEY, List.of(key), List.of());
-    countOperation(DEL);
+        if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
+          log.tracef("[redis] DEL %s", key);
+          txn.del(key);
+          countOperation(DEL);
+          for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
+            log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
+            txn.srem(index.getKey(), index.getValue());
+            countOperation(SREM);
+            toDelete.remove(model.getKey());
+          }
+        } else if (model.isDirty()) {
+          Map<String, String> updates = model.getDirtyFields();
+          if (!updates.isEmpty()) {
 
-    for (Map.Entry<String, String> index : secondaryIndexes.entrySet()) {
-      if (index.getKey() != null && index.getValue() != null) {
-        log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
-        executeSrem(index.getKey(), index.getValue());
-        countOperation(SREM);
+            long expireAtMs = 0L;
+
+            // hset the new/changed values
+            if (model instanceof ExpirableEntity) {
+                ExpirableEntity e = (ExpirableEntity) model;
+                expireAtMs = e.getExpiration();
+            }
+            // using redis CAS function
+            RedisHashCas cas = new RedisHashCas(txn);
+            casInvocations.add(cas.hsetex(key, model.getVersion(), expireAtMs, updates));
+            countOperation(HSETEX);
+          }
+          // sadd the secondary indexes
+          for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
+            log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
+            if (index.getKey() != null && index.getValue() != null) {
+              txn.sadd(index.getKey(), index.getValue());
+              countOperation(SADD);
+            }
+          }
+          // hdel the values that were unset
+          Set<String> deletedFields = model.getDeletedFields();
+          String[] del = deletedFields.toArray(new String[0]);
+          if (del != null && del.length > 0) {
+            log.tracef("[redis] HDEL %s %s", key, Arrays.toString(del));
+            txn.hdel(key, del);
+            countOperation(HDEL);
+          }
+        }
+      }
+      // will this ever run?
+      log.tracef("toDelete still has %d entries", toDelete.size());
+      for (A model : toDelete.values()) {
+        String key = model.getKey().key();
+        log.tracef("[redis] DEL %s", key);
+        txn.del(key);
+        countOperation(HDEL);
+        for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
+          log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
+          txn.srem(index.getKey(), index.getValue());
+          countOperation(SREM);
+        }
+      }
+
+      log.tracef("[redis] EXEC");
+      List<Object> results = txn.exec();
+      if (results == null) {
+        throw new IllegalStateException("Redis transaction aborted due to concurrent modification");
+      }
+      for (RedisHashCas.CasInvocation invocation : casInvocations) {
+        long code = invocation.getResponseCode();
+        if (code != 1L) {
+          log.warnf(
+              "[redis] CAS hsetex returned non-success code %s. %s",
+              code == RedisHashCas.NON_NUMERIC_RESPONSE_CODE ? "non-numeric" : String.valueOf(code),
+              invocation);
+        } else {
+          log.tracef(
+              "[redis] CAS hsetex returned success code %s. %s",
+              code == RedisHashCas.NON_NUMERIC_RESPONSE_CODE ? "non-numeric" : String.valueOf(code),
+              invocation);
+        }
       }
     }
   }
@@ -342,4 +278,3 @@ return redis.call('HDEL', KEYS[1], unpack(ARGV))
     // No action needed on rollback for this use case
   }
 }
-
