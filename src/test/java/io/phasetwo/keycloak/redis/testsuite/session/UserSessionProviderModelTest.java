@@ -131,23 +131,27 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   }
 
   @Test
- // @Ignore("multiple transactions")
+  // @Ignore("multiple transactions")
   public void testExpiredClientSessions() {
-      AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
+    AtomicReference<List<String>> clientSessionIds = new AtomicReference<>();
     UserSessionModel[] origSessions =
         inComittedTransaction(
             session -> {
               // create some user and client sessions
               return createSessions(session, realmId);
             });
-    var clientIds = withRealm(
-              realmId,
-              (s, realm) -> s.sessions()
-                       .getUserSession(realm, origSessions[0].getId())
-                       .getAuthenticatedClientSessions().values().stream()
-                       .map(AuthenticatedClientSessionModel::getId)
-                       .collect(Collectors.toList())
-    );
+    var clientIds =
+        withRealm(
+            realmId,
+            (s, realm) ->
+                s
+                    .sessions()
+                    .getUserSession(realm, origSessions[0].getId())
+                    .getAuthenticatedClientSessions()
+                    .values()
+                    .stream()
+                    .map(AuthenticatedClientSessionModel::getId)
+                    .collect(Collectors.toList()));
     clientSessionIds.set(clientIds);
 
     inComittedTransaction(
@@ -164,13 +168,17 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
                   .getClientSession(
                       userSession,
                       realm.getClientByClientId("test-app"),
-                         session.sessions().getUserSession(realm, origSessions[0].getId())
+                      session
+                          .sessions()
+                          .getUserSession(realm, origSessions[0].getId())
                           .getAuthenticatedClientSessionByClient(
                               realm.getClientByClientId("test-app").getId())
                           .getId(),
                       false);
           Assert.assertEquals(
-                session.sessions().getUserSession(realm, origSessions[0].getId())
+              session
+                  .sessions()
+                  .getUserSession(realm, origSessions[0].getId())
                   .getAuthenticatedClientSessionByClient(
                       realm.getClientByClientId("test-app").getId())
                   .getId(),

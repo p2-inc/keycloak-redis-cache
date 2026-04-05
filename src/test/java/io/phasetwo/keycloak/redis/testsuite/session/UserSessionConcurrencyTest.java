@@ -20,9 +20,11 @@ package io.phasetwo.keycloak.redis.testsuite.session;
 import static io.phasetwo.keycloak.redis.testsuite.LockObjectsForModification.lockUserSessionsForModification;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 import io.phasetwo.keycloak.redis.testsuite.KeycloakModelTest;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -138,6 +140,98 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
           RealmModel realm = session.realms().getRealm(realmId);
           session.getContext().setRealm(realm);
           session.realms().removeRealm(realmId);
+        });
+  }
+
+  @Test
+  public void testStaleConcurrentNoteUpdatesAreRebased() throws Exception {
+    String userSessionId =
+        withRealm(
+                this.realmId,
+                (session, realm) -> {
+                  UserSessionModel userSession =
+                      session
+                          .sessions()
+                          .createUserSession(
+                              realm,
+                              session.users().getUserByUsername(realm, "user1"),
+                              "user1",
+                              "127.0.0.1",
+                              "form",
+                              true,
+                              null,
+                              null);
+                  ClientModel client = realm.getClientByClientId("client0");
+                  AuthenticatedClientSessionModel clientSession =
+                      session.sessions().createClientSession(realm, client, userSession);
+                  clientSession.setNote("base", "value");
+                  return userSession.getId();
+                })
+            .toString();
+
+    CountDownLatch bothRead = new CountDownLatch(2);
+    CountDownLatch releaseWrites = new CountDownLatch(1);
+
+    CompletableFuture<Void> tx1 =
+        CompletableFuture.runAsync(
+            () ->
+                withRealm(
+                    realmId,
+                    (session, realm) -> {
+                      ClientModel client = realm.getClientByClientId("client0");
+                      UserSessionModel userSession =
+                          session.sessions().getUserSession(realm, userSessionId);
+                      AuthenticatedClientSessionModel clientSession =
+                          userSession.getAuthenticatedClientSessionByClient(client.getId());
+                      bothRead.countDown();
+                      try {
+                        bothRead.await(10, TimeUnit.SECONDS);
+                        releaseWrites.await(10, TimeUnit.SECONDS);
+                      } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(ex);
+                      }
+                      clientSession.setNote("note-a", "A");
+                      return null;
+                    }));
+
+    CompletableFuture<Void> tx2 =
+        CompletableFuture.runAsync(
+            () ->
+                withRealm(
+                    realmId,
+                    (session, realm) -> {
+                      ClientModel client = realm.getClientByClientId("client0");
+                      UserSessionModel userSession =
+                          session.sessions().getUserSession(realm, userSessionId);
+                      AuthenticatedClientSessionModel clientSession =
+                          userSession.getAuthenticatedClientSessionByClient(client.getId());
+                      bothRead.countDown();
+                      try {
+                        bothRead.await(10, TimeUnit.SECONDS);
+                      } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(ex);
+                      }
+                      clientSession.setNote("note-b", "B");
+                      releaseWrites.countDown();
+                      return null;
+                    }));
+
+    CompletableFuture.allOf(tx1, tx2).get(30, TimeUnit.SECONDS);
+
+    withRealm(
+        this.realmId,
+        (session, realm) -> {
+          ClientModel client = realm.getClientByClientId("client0");
+          UserSessionModel userSession = session.sessions().getUserSession(realm, userSessionId);
+          AuthenticatedClientSessionModel clientSession =
+              userSession.getAuthenticatedClientSessionByClient(client.getId());
+
+          assertThat(clientSession.getNote("base"), is("value"));
+          assertThat(clientSession.getNote("note-a"), is("A"));
+          assertThat(clientSession.getNote("note-b"), is("B"));
+          return null;
         });
   }
 }

@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.Response;
@@ -21,7 +22,8 @@ public final class RedisHashCas {
 -- KEYS[1] = hash key
 -- ARGV[1] = expected version
 -- ARGV[2] = expiration timestamp in ms (0 or empty = no expiration)
--- ARGV[3..n] = field/value pairs
+-- ARGV[3] = number of field/value pair arguments
+-- ARGV[4..n] = field/value pairs, then delete count, then delete fields
 
 local currentVersion = redis.call("HGET", KEYS[1], "version")
 
@@ -39,12 +41,30 @@ if currentVersion ~= ARGV[1] then
 end
 
 -- Must have at least one field/value pair
-if (#ARGV - 2) < 2 then
+if tonumber(ARGV[3]) == nil then
    return -2
 end
 
+local updateArgCount = tonumber(ARGV[3])
+local updateStart = 4
+local updateEnd = updateStart + updateArgCount - 1
+
 -- Apply updates
-redis.call("HSET", KEYS[1], unpack(ARGV, 3))
+if updateArgCount > 0 then
+   redis.call("HSET", KEYS[1], unpack(ARGV, updateStart, updateEnd))
+end
+
+local deleteCountIndex = updateEnd + 1
+local deleteCount = tonumber(ARGV[deleteCountIndex])
+if deleteCount == nil then
+   return -2
+end
+
+if deleteCount > 0 then
+   local deleteStart = deleteCountIndex + 1
+   local deleteEnd = deleteStart + deleteCount - 1
+   redis.call("HDEL", KEYS[1], unpack(ARGV, deleteStart, deleteEnd))
+end
 
 -- Increment version
 redis.call("HINCRBY", KEYS[1], "version", 1)
@@ -61,9 +81,11 @@ return 1
   private static volatile String scriptSha;
 
   private final AbstractTransaction txn;
+  private final UnifiedJedis client;
 
   public static final class CasInvocation {
     private final Response<Object> response;
+    private final Object immediateResult;
     private final String key;
     private final long expectedVersion;
     private final Long expireAtMs;
@@ -71,11 +93,13 @@ return 1
 
     private CasInvocation(
         Response<Object> response,
+        Object immediateResult,
         String key,
         long expectedVersion,
         Long expireAtMs,
         Map<String, String> updates) {
       this.response = response;
+      this.immediateResult = immediateResult;
       this.key = key;
       this.expectedVersion = expectedVersion;
       this.expireAtMs = expireAtMs;
@@ -98,6 +122,9 @@ return 1
     }
 
     private Object getRawResultSafely() {
+      if (response == null) {
+        return immediateResult;
+      }
       try {
         return response.get();
       } catch (RuntimeException ex) {
@@ -109,6 +136,13 @@ return 1
   /** Used inside an existing MULTI/EXEC block. */
   public RedisHashCas(AbstractTransaction txn) {
     this.txn = Objects.requireNonNull(txn, "transaction");
+    this.client = null;
+  }
+
+  /** Used for immediate execution outside a MULTI/EXEC block. */
+  public RedisHashCas(UnifiedJedis client) {
+    this.txn = null;
+    this.client = Objects.requireNonNull(client, "client");
   }
 
   /** Initializes the Lua script and caches the SHA. Call once at startup. */
@@ -125,9 +159,14 @@ return 1
    * @param expectedVersion expected version for CAS
    * @param expireAtMs expiration timestamp (ms since epoch), or null
    * @param updates map of field/value updates
+   * @param deletedFields hash fields to delete atomically with the write
    */
   public CasInvocation hsetex(
-      String key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
+      String key,
+      long expectedVersion,
+      Long expireAtMs,
+      Map<String, String> updates,
+      Set<String> deletedFields) {
     if (scriptSha == null) {
       throw new IllegalStateException("RedisHashCas.initialize() not called");
     }
@@ -137,18 +176,31 @@ return 1
 
     args.add(String.valueOf(expectedVersion));
     args.add(expireAtMs != null ? String.valueOf(expireAtMs) : "0");
+    args.add(String.valueOf(updates.size() * 2));
 
     updates.forEach(
         (field, value) -> {
           args.add(field);
           args.add(value == null ? MapEntity.NULL_SENTINEL : value);
         });
+    args.add(String.valueOf(deletedFields.size()));
+    args.addAll(deletedFields);
 
-    // Queue Lua execution inside the transaction
     log.tracef(
-        "[redis] (lua CAS version:%d) (exp:%d) HSET %s %s",
-        expectedVersion, expireAtMs, key, updates);
-    Response<Object> response = txn.evalsha(scriptSha, keys, args);
-    return new CasInvocation(response, key, expectedVersion, expireAtMs, updates);
+        "[redis] (lua CAS version:%d) (exp:%d) HSET/HDEL %s updates=%s deletes=%s",
+        expectedVersion, expireAtMs, key, updates, deletedFields);
+
+    if (txn != null) {
+      Response<Object> response = txn.evalsha(scriptSha, keys, args);
+      return new CasInvocation(response, null, key, expectedVersion, expireAtMs, updates);
+    }
+
+    Object result = client.evalsha(scriptSha, keys, args);
+    return new CasInvocation(null, result, key, expectedVersion, expireAtMs, updates);
+  }
+
+  public CasInvocation hsetex(
+      String key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
+    return hsetex(key, expectedVersion, expireAtMs, updates, Set.of());
   }
 }

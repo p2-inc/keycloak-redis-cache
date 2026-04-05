@@ -8,7 +8,6 @@ import io.phasetwo.keycloak.common.TimeAdapter;
 import io.phasetwo.keycloak.redis.MapEntity;
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
 import java.util.*;
-import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Base64Url;
 import org.keycloak.common.util.SecretGenerator;
@@ -120,10 +119,18 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
     log.debugf("[redis] SMEMBERS %s", indexKey);
     Set<String> strIds = jedis.smembers(indexKey);
     if (strIds != null && !strIds.isEmpty()) {
-      Set<AuthenticationSessionKey> asIds =
-          strIds.stream().map(AuthenticationSessionKey::fromString).collect(Collectors.toSet());
-      return asIds.stream()
-          .collect(Collectors.toMap(AuthenticationSessionKey::tabId, authSessionTrx::get));
+      Map<String, AuthenticationSessionModel> sessions = new HashMap<>();
+      for (String rawId : strIds) {
+        AuthenticationSessionKey key = AuthenticationSessionKey.fromString(rawId);
+        RedisAuthenticationSessionAdapter session = authSessionTrx.getIfPresent(key);
+        if (session == null) {
+          log.tracef("[redis] SREM %s %s (stale auth-session parent index)", indexKey, rawId);
+          jedis.srem(indexKey, rawId);
+          continue;
+        }
+        sessions.put(key.tabId(), session);
+      }
+      return sessions;
     }
 
     return new HashMap<>();

@@ -9,13 +9,12 @@ import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.redis.MapEntity;
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
+import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.*;
