@@ -124,8 +124,9 @@ public class RedisRootAuthenticationSessionAdapter extends MapEntity<RootAuthent
         AuthenticationSessionKey key = AuthenticationSessionKey.fromString(rawId);
         RedisAuthenticationSessionAdapter session = authSessionTrx.getIfPresent(key);
         if (session == null) {
-          log.tracef("[redis] SREM %s %s (stale auth-session parent index)", indexKey, rawId);
-          jedis.srem(indexKey, rawId);
+          log.tracef(
+              "Ignoring stale auth-session parent index entry for rootSession=%s child=%s",
+              getId(), rawId);
           continue;
         }
         sessions.put(key.tabId(), session);
