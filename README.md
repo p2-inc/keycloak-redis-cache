@@ -41,8 +41,9 @@ Applies to any deployment type:
 | Property | Description | Example |
 | --- | --- | --- |
 | `KC_COMMUNITY_REDIS_CACHE_ENABLED` | Enable this extension (required). | `true` |
-| `KC_SPI_REDIS_CONNECTION_DEFAULT_MODE` | Redis topology mode: `standalone` or `cluster`. | `standalone` |
-| `KC_SPI_REDIS_CONNECTION_DEFAULT_NODES` | Comma-delimited list of `host:port` nodes. | `redis-1:6379,redis-2:6379` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_MODE` | Redis topology mode: `standalone`, `sentinel`, or `cluster`. | `standalone` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_NODES` | Comma-delimited list of `host:port` nodes. For sentinel mode, these are the sentinel instances. | `redis-1:6379,redis-2:6379` |
+| `KC_SPI_REDIS_CONNECTION_DEFAULT_MASTER_NAME` | Sentinel master name (required when mode is `sentinel`). | `mymaster` |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_SSL` | If it is an SSL connection. | `false` |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_USERNAME` | Redis username (if required). | `someuser` |
 | `KC_SPI_REDIS_CONNECTION_DEFAULT_PASSWORD` | Redis password (if required). | `passw0rd` |
@@ -56,6 +57,10 @@ KC_COMMUNITY_REDIS_CACHE_ENABLED=true
 # Standalone
 KC_SPI_REDIS_CONNECTION_DEFAULT_MODE=standalone
 KC_SPI_REDIS_CONNECTION_DEFAULT_NODES=redis:6379
+# Sentinel
+KC_SPI_REDIS_CONNECTION_DEFAULT_MODE=sentinel
+KC_SPI_REDIS_CONNECTION_DEFAULT_NODES=sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+KC_SPI_REDIS_CONNECTION_DEFAULT_MASTER_NAME=mymaster
 # Cluster
 KC_SPI_REDIS_CONNECTION_DEFAULT_MODE=cluster
 KC_SPI_REDIS_CONNECTION_DEFAULT_NODES=redis-1:6379,redis-2:6379,redis-3:6379

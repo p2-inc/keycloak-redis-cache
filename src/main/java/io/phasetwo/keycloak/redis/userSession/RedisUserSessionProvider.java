@@ -8,6 +8,7 @@ import static org.keycloak.models.UserSessionModel.SessionPersistenceState.TRANS
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
+import io.phasetwo.keycloak.redis.connection.RedisMode;
 import io.phasetwo.keycloak.redis.userSession.expiration.SessionExpirationData;
 import java.util.*;
 import java.util.function.Function;
@@ -42,17 +43,22 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   private final MultivaluedMap<String, RedisUserSessionAdapter> brokerUserIdSessions =
       new ConcurrentMultivaluedHashMap<>();
 
-  public RedisUserSessionProvider(KeycloakSession session, UnifiedJedis jedis) {
+  public RedisUserSessionProvider(
+      KeycloakSession session, UnifiedJedis jedis, RedisMode redisMode) {
     this.session = session;
     this.jedis = jedis;
 
     this.clientSessionTrx =
         new RedisChangelogTransaction<>(
-            "clientSession", jedis, new AuthenticatedClientSessionAdapterSupplier(session, jedis));
+            "clientSession",
+            jedis,
+            redisMode,
+            new AuthenticatedClientSessionAdapterSupplier(session, jedis));
     this.userSessionTrx =
         new RedisChangelogTransaction<>(
             "userSession",
             jedis,
+            redisMode,
             new UserSessionAdapterSupplier(session, jedis, this.clientSessionTrx));
     session.getTransactionManager().enlistAfterCompletion(this.userSessionTrx);
     session.getTransactionManager().enlistAfterCompletion(this.clientSessionTrx);

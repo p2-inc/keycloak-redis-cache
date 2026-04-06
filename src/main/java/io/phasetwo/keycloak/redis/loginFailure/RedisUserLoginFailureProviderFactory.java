@@ -20,7 +20,8 @@ public class RedisUserLoginFailureProviderFactory
   public RedisUserLoginFailureProvider create(KeycloakSession session) {
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    return new RedisUserLoginFailureProvider(session, redisConnectionProvider.getJedis());
+    return new RedisUserLoginFailureProvider(
+        session, redisConnectionProvider.getJedis(), redisConnectionProvider.getRedisMode());
   }
 
   @Override

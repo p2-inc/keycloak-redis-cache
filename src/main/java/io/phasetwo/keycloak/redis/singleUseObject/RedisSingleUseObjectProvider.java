@@ -3,6 +3,7 @@ package io.phasetwo.keycloak.redis.singleUseObject;
 import com.google.common.collect.Maps;
 import io.phasetwo.keycloak.redis.MapEntity;
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
+import io.phasetwo.keycloak.redis.connection.RedisMode;
 import java.util.Map;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.common.util.Time;
@@ -16,12 +17,16 @@ public class RedisSingleUseObjectProvider implements SingleUseObjectProvider {
   private final UnifiedJedis jedis;
   private final RedisChangelogTransaction<SingleUseObjectKey, RedisSingleUseObjectAdapter> suoTrx;
 
-  public RedisSingleUseObjectProvider(KeycloakSession session, UnifiedJedis jedis) {
+  public RedisSingleUseObjectProvider(
+      KeycloakSession session, UnifiedJedis jedis, RedisMode redisMode) {
     this.jedis = jedis;
     this.session = session;
     this.suoTrx =
         new RedisChangelogTransaction<>(
-            "singleUseObject", jedis, new SingleUseObjectAdapterSupplier(session, jedis));
+            "singleUseObject",
+            jedis,
+            redisMode,
+            new SingleUseObjectAdapterSupplier(session, jedis));
     session.getTransactionManager().enlistAfterCompletion(suoTrx);
   }
 

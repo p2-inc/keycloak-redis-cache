@@ -9,12 +9,15 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Tag;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
+import io.phasetwo.keycloak.redis.connection.RedisMode;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.AbstractPipeline;
+import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
@@ -26,16 +29,26 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   private final Map<K, A> toDelete = Maps.newHashMap();
   private final AdapterSupplier<K, A> adapterSupplier;
   private final UnifiedJedis jedis;
+  private final RedisMode redisMode;
   private final String cacheName;
   private final Meter.MeterProvider<Counter> counterProvider;
   private static final int MAX_CAS_RETRIES = 3;
 
   public RedisChangelogTransaction(
-      String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
+      String cacheName,
+      UnifiedJedis jedis,
+      RedisMode redisMode,
+      AdapterSupplier<K, A> adapterSupplier) {
     this.cacheName = cacheName;
     this.jedis = jedis;
+    this.redisMode = redisMode;
     this.adapterSupplier = adapterSupplier;
     this.counterProvider = getCacheCounterProvider();
+  }
+
+  public RedisChangelogTransaction(
+      String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
+    this(cacheName, jedis, RedisMode.STANDALONE, adapterSupplier);
   }
 
   /** Count an operation in metrics */
@@ -183,13 +196,29 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
   private void deleteEntity(A model) {
     String key = model.getKey().key();
-    log.tracef("[redis] DEL %s", key);
-    jedis.del(key);
-    countOperation(DEL);
-    for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-      log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
-      jedis.srem(index.getKey(), index.getValue());
-      countOperation(SREM);
+    Map<String, String> indexes = model.getSecondaryIndexes();
+
+    if (redisMode != RedisMode.CLUSTER && !indexes.isEmpty()) {
+      try (AbstractTransaction txn = jedis.multi()) {
+        log.tracef("[redis] DEL %s", key);
+        txn.del(key);
+        countOperation(DEL);
+        for (Map.Entry<String, String> index : indexes.entrySet()) {
+          log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
+          txn.srem(index.getKey(), index.getValue());
+          countOperation(SREM);
+        }
+        txn.exec();
+      }
+    } else {
+      log.tracef("[redis] DEL %s", key);
+      jedis.del(key);
+      countOperation(DEL);
+      for (Map.Entry<String, String> index : indexes.entrySet()) {
+        log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
+        jedis.srem(index.getKey(), index.getValue());
+        countOperation(SREM);
+      }
     }
   }
 
@@ -240,9 +269,26 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   }
 
   private void addSecondaryIndexes(A model) {
-    for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-      log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
-      if (index.getKey() != null && index.getValue() != null) {
+    Map<String, String> indexes = model.getSecondaryIndexes();
+    List<Map.Entry<String, String>> validIndexes =
+        indexes.entrySet().stream()
+            .filter(e -> e.getKey() != null && e.getValue() != null)
+            .collect(Collectors.toList());
+
+    if (validIndexes.isEmpty()) return;
+
+    if (redisMode != RedisMode.CLUSTER) {
+      try (AbstractTransaction txn = jedis.multi()) {
+        for (Map.Entry<String, String> index : validIndexes) {
+          log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
+          txn.sadd(index.getKey(), index.getValue());
+          countOperation(SADD);
+        }
+        txn.exec();
+      }
+    } else {
+      for (Map.Entry<String, String> index : validIndexes) {
+        log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
         jedis.sadd(index.getKey(), index.getValue());
         countOperation(SADD);
       }
