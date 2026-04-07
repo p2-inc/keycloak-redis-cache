@@ -89,6 +89,7 @@ A pre-built docker image is also available at (https://quay.io/repository/phaset
 - Some tests are still skipped or failing. We need to understand if this is because the test fails to do everything in a single transaction (Keycloak doesn't do this internally) or if there is something we are missing.
 - ~~Hasn't been benchmarked to look for issues under load.~~
 - ~~You should probably enable sticky sessions on your load balancer, although we need to substantiate this with testing.~~
+- Our CAS retry behavior is naive, rebasing the entity on version mismatch. This rebase is field-level, not operation-level. It preserves partial note/map edits, but it does not recreate logical operations like “increment from latest value” for things such as incrementFailures(). We should look at how the Keycloak [`Updater`](https://www.keycloak.org/docs-api/latest/javadocs/org/keycloak/models/sessions/infinispan/changes/remote/updater/Updater.html) works, and do something similar in a per-entity Lua function.
 
 ## Support
 
