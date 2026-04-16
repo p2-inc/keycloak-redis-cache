@@ -4,6 +4,7 @@ import static org.keycloak.common.util.StackUtil.getShortStackTrace;
 import static org.keycloak.models.utils.SessionExpiration.getAuthSessionLifespan;
 
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
+import io.phasetwo.keycloak.redis.connection.RedisMode;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -33,18 +34,22 @@ public class RedisAuthenticationSessionProvider implements AuthenticationSession
       authSessionTrx;
 
   public RedisAuthenticationSessionProvider(
-      KeycloakSession session, UnifiedJedis jedis, int authSessionsLimit) {
+      KeycloakSession session, UnifiedJedis jedis, RedisMode redisMode, int authSessionsLimit) {
     this.session = session;
     this.jedis = jedis;
     this.authSessionsLimit = authSessionsLimit;
 
     this.authSessionTrx =
         new RedisChangelogTransaction<>(
-            "authSession", jedis, new AuthenticationSessionAdapterSupplier(session, jedis));
+            "authSession",
+            jedis,
+            redisMode,
+            new AuthenticationSessionAdapterSupplier(session, jedis));
     this.rootSessionTrx =
         new RedisChangelogTransaction<>(
             "rootAuthSession",
             jedis,
+            redisMode,
             new RootAuthenticationSessionAdapterSupplier(
                 session, jedis, this.authSessionsLimit, this.authSessionTrx));
     session.getTransactionManager().enlistAfterCompletion(this.authSessionTrx);

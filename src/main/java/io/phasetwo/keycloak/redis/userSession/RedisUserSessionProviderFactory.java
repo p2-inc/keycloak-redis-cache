@@ -22,7 +22,8 @@ public class RedisUserSessionProviderFactory
   public RedisUserSessionProvider create(KeycloakSession session) {
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
-    return new RedisUserSessionProvider(session, redisConnectionProvider.getJedis());
+    return new RedisUserSessionProvider(
+        session, redisConnectionProvider.getJedis(), redisConnectionProvider.getRedisMode());
   }
 
   @Override

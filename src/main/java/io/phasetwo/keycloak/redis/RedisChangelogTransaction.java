@@ -4,17 +4,16 @@ import static io.phasetwo.keycloak.redis.RedisMetrics.*;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Tag;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
-import java.util.Arrays;
+import io.phasetwo.keycloak.redis.connection.RedisMode;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.AbstractPipeline;
@@ -30,15 +29,26 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   private final Map<K, A> toDelete = Maps.newHashMap();
   private final AdapterSupplier<K, A> adapterSupplier;
   private final UnifiedJedis jedis;
+  private final RedisMode redisMode;
   private final String cacheName;
   private final Meter.MeterProvider<Counter> counterProvider;
+  private static final int MAX_CAS_RETRIES = 3;
+
+  public RedisChangelogTransaction(
+      String cacheName,
+      UnifiedJedis jedis,
+      RedisMode redisMode,
+      AdapterSupplier<K, A> adapterSupplier) {
+    this.cacheName = cacheName;
+    this.jedis = jedis;
+    this.redisMode = redisMode;
+    this.adapterSupplier = adapterSupplier;
+    this.counterProvider = getCacheCounterProvider();
+  }
 
   public RedisChangelogTransaction(
       String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
-    this.cacheName = cacheName;
-    this.jedis = jedis;
-    this.adapterSupplier = adapterSupplier;
-    this.counterProvider = getCacheCounterProvider();
+    this(cacheName, jedis, RedisMode.STANDALONE, adapterSupplier);
   }
 
   /** Count an operation in metrics */
@@ -164,137 +174,140 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
   @Override
   protected void commitImpl() {
-    Set<String> keysToWatch = Sets.newHashSet();
+    if (cache.isEmpty() && toDelete.isEmpty()) {
+      log.trace("nothing to commit. skipping transaction...");
+      return;
+    }
 
-    // Keys to watch: all affected session keys + index
-    for (A model : cache.values()) {
-      if (!toDelete.containsKey(model.getKey())) {
-        log.tracef("adding key to WATCH %s", model.getKey().key());
-        keysToWatch.add(model.getKey().key());
+    for (A model : Lists.newArrayList(cache.values())) {
+      if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
+        deleteEntity(model);
+        toDelete.remove(model.getKey());
+      } else if (model.isDirty()) {
+        writeEntityWithRetries(model);
       }
     }
-    for (A model : toDelete.values()) {
-      log.tracef("adding key to WATCH %s", model.getKey().key());
-      keysToWatch.add(model.getKey().key());
+
+    for (A model : Lists.newArrayList(toDelete.values())) {
+      deleteEntity(model);
+      toDelete.remove(model.getKey());
     }
+  }
 
-    String[] kw = keysToWatch.toArray(new String[0]);
-    if (kw == null || kw.length == 0) {
-      log.trace("nothing to WATCH. skipping transaction...");
-      return; // nothing to do?
-    } else {
-      // don't WATCH because of CAS
-      // log.tracef("[redis] WATCH %s", kw);
-      // jedis.watch(kw);
-      // countOperation(WATCH);
-    }
+  private void deleteEntity(A model) {
+    String key = model.getKey().key();
+    Map<String, String> indexes = model.getSecondaryIndexes();
 
-    // UnifiedJedis automatically batches MULTI/EXEC transactions like a pipeline, so you do not
-    // need a
-    // separate Pipeline to reduce round trips inside a MULTI.
-    try (AbstractTransaction txn = jedis.multi()) {
-      List<RedisHashCas.CasInvocation> casInvocations = Lists.newArrayList();
-
-      for (A model : cache.values()) {
-        String key = model.getKey().key();
-
-        if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
-          log.tracef("[redis] DEL %s", key);
-          txn.del(key);
-          countOperation(DEL);
-          for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-            log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
-            txn.srem(index.getKey(), index.getValue());
-            countOperation(SREM);
-            toDelete.remove(model.getKey());
-          }
-        } else if (model.isDirty()) {
-          Map<String, String> updates = model.getDirtyFields();
-          if (!updates.isEmpty()) {
-
-            long expireAtMs = 0L;
-
-            // hset the new/changed values
-            if (model instanceof ExpirableEntity) {
-              ExpirableEntity e = (ExpirableEntity) model;
-              expireAtMs = e.getExpiration();
-              // log.tracef("[redis] (exp:%s) HSET %s %s", ExpirationUtils.fromNow(e), key,
-              // updates);
-              // jedis 7.1.0
-              /*
-              txn.hsetex(
-                  key,
-                  HSetExParams.hSetExParams().pxAt(e.getExpiration()),
-                  updates); // todo need to check for expiration null
-              */
-              /*
-              // jedis 5.1.0
-              txn.hset(key, updates);
-              txn.pexpireAt(key, e.getExpiration());
-              */
-              // countOperation(HSETEX);
-            } else {
-              // log.tracef("[redis] HSET %s %s", key, updates);
-              // txn.hset(key, updates);
-              // countOperation(HSETEX);
-            }
-            // using redis CAS function
-            RedisHashCas cas = new RedisHashCas(txn);
-            casInvocations.add(cas.hsetex(key, model.getVersion(), expireAtMs, updates));
-            countOperation(HSETEX);
-          }
-          // sadd the secondary indexes
-          for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
-            log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
-            if (index.getKey() != null && index.getValue() != null) {
-              txn.sadd(index.getKey(), index.getValue());
-              countOperation(SADD);
-            }
-          }
-          // hdel the values that were unset
-          Set<String> deletedFields = model.getDeletedFields();
-          String[] del = deletedFields.toArray(new String[0]);
-          if (del != null && del.length > 0) {
-            log.tracef("[redis] HDEL %s %s", key, Arrays.toString(del));
-            txn.hdel(key, del);
-            countOperation(HDEL);
-          }
-        }
-      }
-      // will this ever run?
-      log.tracef("toDelete still has %d entries", toDelete.size());
-      for (A model : toDelete.values()) {
-        String key = model.getKey().key();
+    if (redisMode != RedisMode.CLUSTER && !indexes.isEmpty()) {
+      try (AbstractTransaction txn = jedis.multi()) {
         log.tracef("[redis] DEL %s", key);
         txn.del(key);
-        countOperation(HDEL);
-        for (Map.Entry<String, String> index : model.getSecondaryIndexes().entrySet()) {
+        countOperation(DEL);
+        for (Map.Entry<String, String> index : indexes.entrySet()) {
           log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
           txn.srem(index.getKey(), index.getValue());
           countOperation(SREM);
         }
+        txn.exec();
       }
-
-      log.tracef("[redis] EXEC");
-      List<Object> results = txn.exec();
-      if (results == null) {
-        throw new IllegalStateException("Redis transaction aborted due to concurrent modification");
-      }
-      for (RedisHashCas.CasInvocation invocation : casInvocations) {
-        long code = invocation.getResponseCode();
-        if (code != 1L) {
-          log.warnf(
-              "[redis] CAS hsetex returned non-success code %s. %s",
-              code == RedisHashCas.NON_NUMERIC_RESPONSE_CODE ? "non-numeric" : String.valueOf(code),
-              invocation);
-        } else {
-          log.tracef(
-              "[redis] CAS hsetex returned success code %s. %s",
-              code == RedisHashCas.NON_NUMERIC_RESPONSE_CODE ? "non-numeric" : String.valueOf(code),
-              invocation);
-        }
+    } else {
+      log.tracef("[redis] DEL %s", key);
+      jedis.del(key);
+      countOperation(DEL);
+      for (Map.Entry<String, String> index : indexes.entrySet()) {
+        log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
+        jedis.srem(index.getKey(), index.getValue());
+        countOperation(SREM);
       }
     }
+  }
+
+  private void writeEntityWithRetries(A originalModel) {
+    A attemptModel = originalModel;
+
+    for (int attempt = 0; attempt <= MAX_CAS_RETRIES; attempt++) {
+      RedisHashCas.CasInvocation invocation = writeEntityOnce(attemptModel);
+      long code = invocation.getResponseCode();
+      if (code == 1L) {
+        log.tracef("[redis] CAS hsetex returned success code %s. %s", code, invocation);
+        addSecondaryIndexes(attemptModel);
+        return;
+      }
+
+      log.warnf("[redis] CAS hsetex returned non-success code %s. %s", code, invocation);
+      if ((code != 0L && code != -1L) || attempt == MAX_CAS_RETRIES) {
+        throw new IllegalStateException(
+            String.format(
+                "Redis CAS failed for key %s after %d attempts with code %d",
+                attemptModel.getKey().key(), attempt + 1, code));
+      }
+
+      attemptModel = rebaseModel(originalModel);
+    }
+  }
+
+  private RedisHashCas.CasInvocation writeEntityOnce(A model) {
+    Long expireAtMs = null;
+    if (model instanceof ExpirableEntity) {
+      ExpirableEntity e = (ExpirableEntity) model;
+      expireAtMs = e.getExpiration();
+    }
+
+    RedisHashCas cas = new RedisHashCas(jedis);
+    RedisHashCas.CasInvocation invocation =
+        cas.hsetex(
+            model.getKey().key(),
+            model.getVersion(),
+            expireAtMs,
+            model.getDirtyFields(),
+            model.getDeletedFields());
+    countOperation(HSETEX);
+    if (!model.getDeletedFields().isEmpty()) {
+      countOperation(HDEL);
+    }
+    return invocation;
+  }
+
+  private void addSecondaryIndexes(A model) {
+    Map<String, String> indexes = model.getSecondaryIndexes();
+    List<Map.Entry<String, String>> validIndexes =
+        indexes.entrySet().stream()
+            .filter(e -> e.getKey() != null && e.getValue() != null)
+            .collect(Collectors.toList());
+
+    if (validIndexes.isEmpty()) return;
+
+    if (redisMode != RedisMode.CLUSTER) {
+      try (AbstractTransaction txn = jedis.multi()) {
+        for (Map.Entry<String, String> index : validIndexes) {
+          log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
+          txn.sadd(index.getKey(), index.getValue());
+          countOperation(SADD);
+        }
+        txn.exec();
+      }
+    } else {
+      for (Map.Entry<String, String> index : validIndexes) {
+        log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
+        jedis.sadd(index.getKey(), index.getValue());
+        countOperation(SADD);
+      }
+    }
+  }
+
+  private A rebaseModel(A originalModel) {
+    K key = originalModel.getKey();
+    String redisKey = key.key();
+    log.tracef("[redis] HGETALL %s (rebase)", redisKey);
+    Map<String, String> latestData = jedis.hgetAll(redisKey);
+    countOperation(HGETALL);
+
+    A rebasedModel =
+        latestData == null || latestData.isEmpty()
+            ? adapterSupplier.newInstance(key)
+            : adapterSupplier.newInstance(key, latestData);
+    originalModel.replayPendingChangesOnto(rebasedModel);
+    return rebasedModel;
   }
 
   @Override

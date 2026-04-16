@@ -25,7 +25,10 @@ public class RedisAuthenticationSessionProviderFactory
     RedisConnectionProvider redisConnectionProvider =
         createProviderCached(session, RedisConnectionProvider.class);
     return new RedisAuthenticationSessionProvider(
-        session, redisConnectionProvider.getJedis(), authSessionsLimit);
+        session,
+        redisConnectionProvider.getJedis(),
+        redisConnectionProvider.getRedisMode(),
+        authSessionsLimit);
   }
 
   @Override

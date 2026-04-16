@@ -7,4 +7,6 @@ public interface RedisConnectionProvider extends Provider {
   UnifiedJedis getJedis();
 
   UnifiedJedis createClient();
+
+  RedisMode getRedisMode();
 }

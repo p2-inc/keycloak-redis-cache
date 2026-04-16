@@ -20,6 +20,7 @@ import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.JedisClientConfig;
 import redis.clients.jedis.RedisClient;
 import redis.clients.jedis.RedisClusterClient;
+import redis.clients.jedis.RedisSentinelClient;
 import redis.clients.jedis.UnifiedJedis;
 import redis.clients.jedis.util.Pool;
 
@@ -34,6 +35,7 @@ public class DefaultRedisConnectionProviderFactory
   private static UnifiedJedis jedisClient;
   private static RedisMode mode = RedisMode.STANDALONE;
   private static Set<HostAndPort> nodes = Set.of();
+  private static String masterName;
   private static JedisClientConfig clientConfig;
   private static GenericObjectPoolConfig<Connection> poolConfig;
 
@@ -47,7 +49,12 @@ public class DefaultRedisConnectionProviderFactory
 
       @Override
       public UnifiedJedis createClient() {
-        return buildClient(mode, nodes, clientConfig, poolConfig);
+        return buildClient(mode, nodes, masterName, clientConfig, poolConfig);
+      }
+
+      @Override
+      public RedisMode getRedisMode() {
+        return mode;
       }
 
       @Override
@@ -67,6 +74,14 @@ public class DefaultRedisConnectionProviderFactory
     nodes = parseNodes(nodesValue);
     log.tracef("nodes: %s", nodes);
 
+    masterName = scope.get("masterName");
+    if (mode == RedisMode.SENTINEL && (masterName == null || masterName.isBlank())) {
+      throw new IllegalStateException(
+          "Sentinel mode requires 'masterName' to be configured. "
+              + "Set KC_SPI_REDIS_CONNECTION_DEFAULT_MASTER_NAME.");
+    }
+    log.tracef("masterName: %s", masterName);
+
     boolean useSsl = scope.getBoolean("ssl", false);
     log.tracef("useSsl: %b", useSsl);
 
@@ -77,7 +92,7 @@ public class DefaultRedisConnectionProviderFactory
     poolConfig = buildPoolConfig();
     clientConfig = buildClientConfig(useSsl, username, password, redisTimeout);
 
-    jedisClient = buildClient(mode, nodes, clientConfig, poolConfig);
+    jedisClient = buildClient(mode, nodes, masterName, clientConfig, poolConfig);
 
     RedisHashCas.initialize(jedisClient);
 
@@ -112,6 +127,10 @@ public class DefaultRedisConnectionProviderFactory
     if (client instanceof RedisClient) {
       Pool<?> pool = ((RedisClient) client).getPool();
       addJedisPoolMetrics(pool);
+      return;
+    }
+    if (client instanceof RedisSentinelClient) {
+      log.debug("Pool-level metrics are not available for RedisSentinelClient");
       return;
     }
     if (client instanceof RedisClusterClient) {
@@ -203,11 +222,22 @@ public class DefaultRedisConnectionProviderFactory
   private static UnifiedJedis buildClient(
       RedisMode mode,
       Set<HostAndPort> nodes,
+      String masterName,
       JedisClientConfig clientConfig,
       GenericObjectPoolConfig<Connection> poolConfig) {
     if (mode == RedisMode.CLUSTER) {
       return RedisClusterClient.builder()
           .nodes(nodes)
+          .clientConfig(clientConfig)
+          // .poolConfig(poolConfig)
+          .build();
+    }
+
+    if (mode == RedisMode.SENTINEL) {
+      return RedisSentinelClient.builder()
+          .masterName(masterName)
+          .sentinels(nodes)
+          .sentinelClientConfig(clientConfig)
           .clientConfig(clientConfig)
           // .poolConfig(poolConfig)
           .build();
@@ -222,12 +252,6 @@ public class DefaultRedisConnectionProviderFactory
         .clientConfig(clientConfig)
         //  .poolConfig(poolConfig)
         .build();
-  }
-
-  private enum RedisMode {
-    STANDALONE,
-    SENTINEL,
-    CLUSTER
   }
 
   @Override

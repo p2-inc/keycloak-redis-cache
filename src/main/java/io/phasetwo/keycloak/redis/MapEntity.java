@@ -263,6 +263,30 @@ public abstract class MapEntity<K extends Key> {
     return markedForDelete;
   }
 
+  /**
+   * Replays this entity's pending field-level mutations onto a freshly loaded instance.
+   *
+   * <p>This intentionally skips the synthetic {@code version} field because the target instance
+   * must preserve the version that was just read from Redis for the next CAS attempt.
+   */
+  public void replayPendingChangesOnto(MapEntity<K> target) {
+    for (String key : dirtyFields) {
+      if ("version".equals(key)) {
+        continue;
+      }
+      target.setField(key, data.get(key));
+    }
+    for (String key : deletedFields) {
+      if ("version".equals(key)) {
+        continue;
+      }
+      target.removeField(key);
+    }
+    if (markedForDelete) {
+      target.markForDelete();
+    }
+  }
+
   public Map<String, String> getDirtyFields() {
     Map<String, String> dirty = Maps.newHashMap();
     for (String k : dirtyFields) {

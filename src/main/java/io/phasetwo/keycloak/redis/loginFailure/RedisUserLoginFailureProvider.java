@@ -1,6 +1,7 @@
 package io.phasetwo.keycloak.redis.loginFailure;
 
 import io.phasetwo.keycloak.redis.RedisChangelogTransaction;
+import io.phasetwo.keycloak.redis.connection.RedisMode;
 import java.util.Set;
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.KeycloakSession;
@@ -17,13 +18,13 @@ public class RedisUserLoginFailureProvider implements UserLoginFailureProvider {
   private final RedisChangelogTransaction<LoginFailureKey, RedisUserLoginFailureAdapter>
       loginFailureTrx;
 
-  public RedisUserLoginFailureProvider(KeycloakSession session, UnifiedJedis jedis) {
+  public RedisUserLoginFailureProvider(
+      KeycloakSession session, UnifiedJedis jedis, RedisMode redisMode) {
     this.jedis = jedis;
     this.session = session;
     this.loginFailureTrx =
         new RedisChangelogTransaction<>(
-            "loginFailure", jedis, new UserLoginFailureAdapterSupplier(session, jedis));
-    ;
+            "loginFailure", jedis, redisMode, new UserLoginFailureAdapterSupplier(session, jedis));
     session.getTransactionManager().enlistAfterCompletion(loginFailureTrx);
   }
 
