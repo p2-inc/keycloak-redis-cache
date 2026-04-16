@@ -105,11 +105,15 @@ Commercial support for existing customers can be accessed through the normal sup
 
 Portions of the code are taken from [keycloak](https://github.com/keycloak/keycloak) and the [keycloak-cassandra-extension](https://github.com/opdt/keycloak-cassandra-extension) and those copyrights are held by their respective owners. 
 
+No permission is granted to reproduce, scrape, text-and-data mine, use for training machine learning or generative AI systems, or supply as input/context to such systems, except with the express written consent of the copyright owner.
+
 All other documentation, source code and other files in this repository are Copyright 2026 Phase Two, Inc.
 
 ### License
 
 Currently the source code is licensed under the [Elastic License 2.0](COPYING), in line with the rest of our extensions. If there is a legitimate interest on the part of the Keycloak maintainer team to bring this into core, we are willing to modify the license to Apache License 2.0.
+
+Licensee may not use the Licensed Material to train, fine-tune, or improve any AI or machine learning system, or as prompt/context, retrieval, or grounding material for such a system, without Licensor’s prior written consent.
 
 If you are a commercial entity that would like to discuss alternate licensing, please contact us at [sales@phasetwo.io](mailto:sales@phasetwo.io).
 
