@@ -32,10 +32,10 @@ public class StartupTest extends KeycloakModelTest {
         session -> {
           ApplianceBootstrap applianceBootstrap = new ApplianceBootstrap(session);
           CryptoIntegration.init(KeycloakApplication.class.getClassLoader());
-          boolean result = applianceBootstrap.createMasterRealm();
+          applianceBootstrap.createMasterRealm();
           applianceBootstrap.createMasterRealmUser("admin", "admin", false);
 
-          assertTrue(result);
+          assertNotNull(session.realms().getRealmByName("master"));
         });
 
     inComittedTransaction(
