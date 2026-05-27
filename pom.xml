@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <main.java.package>io.phasetwo.keycloak.redis</main.java.package>
     <junit.version>5.8.2</junit.version>
-    <keycloak.version>26.5.6</keycloak.version>
+    <keycloak.version>26.6.2</keycloak.version>
     <lombok.version>1.18.42</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
     <testcontainers.version>1.21.4</testcontainers.version>
@@ -344,6 +344,15 @@
     </dependency>
 
     <!-- testing -->
+    <!-- Force ASM 9.x ahead of nashorn-core's transitive ASM 7.3.1 so SmallRye
+         Config (used by OTelTracingProviderFactory in keycloak >= 26.6) can
+         generate ConfigMappings with ASM9 bytecode. -->
+    <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm</artifactId>
+      <version>9.9.1</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.keycloak</groupId>
       <artifactId>keycloak-quarkus-server</artifactId>

@@ -61,11 +61,27 @@ public class RedisUserLoginFailureAdapter extends MapEntity<LoginFailureKey>
   }
 
   @Override
+  public int getNumSecondaryAuthFailures() {
+    return getInt("numSecondaryAuthFailures", 0);
+  }
+
+  @Override
+  public void incrementSecondaryAuthFailures() {
+    setField("numSecondaryAuthFailures", getNumSecondaryAuthFailures() + 1);
+  }
+
+  @Override
   public void clearFailures() {
     removeField("numFailures");
     removeField("lastFailure");
     removeField("lastIPFailure");
     removeField("failedLoginNotBefore");
+  }
+
+  @Override
+  public void clearPrimaryAndSecondaryAuthFailures() {
+    clearFailures();
+    removeField("numSecondaryAuthFailures");
   }
 
   @Override
