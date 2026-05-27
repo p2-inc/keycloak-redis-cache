@@ -1,4 +1,4 @@
-FROM quay.io/phasetwo/keycloak-crdb:26.5.6 AS builder
+FROM quay.io/phasetwo/keycloak-crdb:26.6.2 AS builder
 
 ENV KC_COMMUNITY_REDIS_CACHE_ENABLED: true
 ENV KC_CACHE: local
@@ -7,7 +7,7 @@ COPY ./target/*withdeps.jar /opt/keycloak/providers/
 
 RUN /opt/keycloak/bin/kc.sh --verbose build
 
-FROM quay.io/phasetwo/keycloak-crdb:26.5.6
+FROM quay.io/phasetwo/keycloak-crdb:26.6.2
 
 USER 1000
 
