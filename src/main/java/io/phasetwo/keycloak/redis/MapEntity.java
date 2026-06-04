@@ -290,7 +290,7 @@ public abstract class MapEntity<K extends Key> {
   public Map<String, String> getDirtyFields() {
     Map<String, String> dirty = Maps.newHashMap();
     for (String k : dirtyFields) {
-      dirty.put(k, data.get(k));
+      dirty.put(k, data.getOrDefault(k, NULL_SENTINEL));
     }
     return dirty;
   }
