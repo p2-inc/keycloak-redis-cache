@@ -4,7 +4,6 @@ import static io.phasetwo.keycloak.redis.RedisMetrics.*;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
-import io.phasetwo.keycloak.redis.RedisHashCas;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -93,8 +92,6 @@ public class DefaultRedisConnectionProviderFactory
     clientConfig = buildClientConfig(useSsl, username, password, redisTimeout);
 
     jedisClient = buildClient(mode, nodes, masterName, clientConfig, poolConfig);
-
-    RedisHashCas.initialize(jedisClient);
 
     addClientMetrics(jedisClient);
   }
