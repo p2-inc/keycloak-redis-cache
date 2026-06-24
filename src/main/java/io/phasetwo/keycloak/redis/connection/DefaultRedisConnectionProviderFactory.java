@@ -147,6 +147,8 @@ public class DefaultRedisConnectionProviderFactory
         return RedisMode.SENTINEL;
       case "cluster":
         return RedisMode.CLUSTER;
+      case "memory-db":
+        return RedisMode.MEMORY_DB;
       default:
         log.warnf("Unknown redis mode '%s', defaulting to standalone", modeValue);
         return RedisMode.STANDALONE;

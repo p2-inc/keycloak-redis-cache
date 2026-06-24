@@ -6,8 +6,12 @@ import lombok.extern.jbosslog.JBossLog;
 import redis.clients.jedis.UnifiedJedis;
 
 /**
- * Commit strategy for CLUSTER mode: operations are grouped by hash slot, since a cross-slot {@code
- * EVAL} is illegal in a Redis cluster.
+ * Commit strategy for servers that enforce hash slots — a Redis Cluster, or AWS MemoryDB even when
+ * reached over a single standalone endpoint. Operations are grouped by hash slot, since a cross-slot
+ * {@code EVAL} is rejected with {@code CROSSSLOT}. Selected by {@link
+ * RedisChangelogTransaction#create} for the slot-enforcing modes {@link
+ * io.phasetwo.keycloak.redis.connection.RedisMode#CLUSTER} and {@link
+ * io.phasetwo.keycloak.redis.connection.RedisMode#MEMORY_DB}.
  *
  * <p>Phase A runs one all-or-nothing CAS script per entity slot (with any same-slot index ops
  * folded in). Phase B runs the remaining index ops — those whose key maps to a different slot than

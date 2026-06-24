@@ -6,8 +6,14 @@ import lombok.extern.jbosslog.JBossLog;
 import redis.clients.jedis.UnifiedJedis;
 
 /**
- * Commit strategy for STANDALONE and SENTINEL modes: writes, deletes, and all secondary-index
- * add/remove operations execute in a single atomic Lua {@code eval}.
+ * Commit strategy for servers that do <strong>not</strong> enforce hash slots (a plain single-node
+ * Redis, reached over a STANDALONE or SENTINEL connection): writes, deletes, and all secondary-index
+ * add/remove operations execute in a single atomic Lua {@code eval}. Selected by {@link
+ * RedisChangelogTransaction#create} for the non-slot-enforcing modes {@link
+ * io.phasetwo.keycloak.redis.connection.RedisMode#STANDALONE} and {@link
+ * io.phasetwo.keycloak.redis.connection.RedisMode#SENTINEL}; a slot-enforcing server (Cluster or
+ * MemoryDB) would reject the cross-slot {@code eval} with {@code CROSSSLOT} and uses {@link
+ * ClusterRedisChangelogTransaction} instead.
  */
 @JBossLog
 public class StandaloneRedisChangelogTransaction<K extends Key, A extends MapEntity<K>>

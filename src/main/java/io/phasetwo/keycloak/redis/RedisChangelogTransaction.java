@@ -12,10 +12,8 @@ import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
 import io.phasetwo.keycloak.redis.connection.RedisMode;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.AbstractPipeline;
@@ -58,16 +56,35 @@ public abstract class RedisChangelogTransaction<K extends Key, A extends MapEnti
     this.scriptBuilder = new LuaCommitScriptBuilder<>(this::countOperation);
   }
 
-  /** Creates the transaction implementation appropriate for the given Redis mode. */
+  /**
+   * Creates the transaction implementation appropriate for the server's commit constraints.
+   *
+   * <p>The choice is driven by whether the <em>server</em> enforces hash slots — i.e. rejects a
+   * cross-slot {@code EVAL} with {@code CROSSSLOT}. Slot-enforcing servers ({@link
+   * RedisMode#CLUSTER} and {@link RedisMode#MEMORY_DB}) require the per-slot strategy; a plain
+   * single-node Redis reached over {@link RedisMode#STANDALONE} or {@link RedisMode#SENTINEL} can
+   * use the single-script strategy. AWS MemoryDB is the motivating case for the dedicated mode: it
+   * is always cluster-enabled, but must be connected to as standalone through an SSM tunnel (cluster
+   * discovery returns unreachable private node addresses), so it cannot be inferred from the
+   * connection alone and is declared explicitly.
+   */
   public static <K extends Key, A extends MapEntity<K>> RedisChangelogTransaction<K, A> create(
       String cacheName,
       UnifiedJedis jedis,
       RedisMode redisMode,
       AdapterSupplier<K, A> adapterSupplier) {
-    if (redisMode == RedisMode.CLUSTER) {
+    if (slotEnforced(redisMode)) {
       return new ClusterRedisChangelogTransaction<>(cacheName, jedis, redisMode, adapterSupplier);
     }
     return new StandaloneRedisChangelogTransaction<>(cacheName, jedis, redisMode, adapterSupplier);
+  }
+
+  /**
+   * Whether the commit must be grouped by hash slot. True for the slot-enforcing modes {@link
+   * RedisMode#CLUSTER} and {@link RedisMode#MEMORY_DB}.
+   */
+  static boolean slotEnforced(RedisMode redisMode) {
+    return redisMode == RedisMode.CLUSTER || redisMode == RedisMode.MEMORY_DB;
   }
 
   public static <K extends Key, A extends MapEntity<K>> RedisChangelogTransaction<K, A> create(

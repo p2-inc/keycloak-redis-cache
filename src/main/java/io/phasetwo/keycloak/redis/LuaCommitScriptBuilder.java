@@ -1,6 +1,5 @@
 package io.phasetwo.keycloak.redis;
 
-import io.phasetwo.keycloak.common.ExpirableEntity;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -19,8 +18,8 @@ import redis.clients.jedis.util.JedisClusterCRC16;
  * <p>Only {@code KEYS[n]} / {@code ARGV[n]} numeric references and command names are baked into the
  * script text; every dynamic string (keys, fields, values, versions, index members) flows through
  * KEYS/ARGV, so there is no injection or escaping risk. The create/CAS rules mirror the previous
- * {@code RedisHashCas} script: a {@code version} of {@code "0"} is the create path, nulls map to
- * {@link MapEntity#NULL_SENTINEL}, and {@code PEXPIREAT} runs only when an expiration is present.
+ * {@code RedisHashCas} script: a {@code version} of {@code "0"} is the create path and nulls map to
+ * {@link MapEntity#NULL_SENTINEL}. Key expiration is not handled here.
  */
 @JBossLog
 public final class LuaCommitScriptBuilder<K extends Key, A extends MapEntity<K>> {
@@ -249,17 +248,6 @@ public final class LuaCommitScriptBuilder<K extends Key, A extends MapEntity<K>>
       }
 
       lua.append("redis.call('HINCRBY', KEYS[").append(k).append("], 'version', 1)\n");
-
-      Long exp = expirationOf(w);
-      args.add(exp == null ? "0" : String.valueOf(exp));
-      int xe = args.size();
-      lua.append("if ARGV[")
-          .append(xe)
-          .append("] ~= '0' then redis.call('PEXPIREAT', KEYS[")
-          .append(k)
-          .append("], tonumber(ARGV[")
-          .append(xe)
-          .append("])) end\n");
     }
 
     // unconditional deletes (matches the previous deleteEntity)
@@ -353,13 +341,6 @@ public final class LuaCommitScriptBuilder<K extends Key, A extends MapEntity<K>>
       keyIdx.put(key, i);
     }
     return i;
-  }
-
-  private static Long expirationOf(MapEntity<?> entity) {
-    if (entity instanceof ExpirableEntity) {
-      return ((ExpirableEntity) entity).getExpiration();
-    }
-    return null;
   }
 
   private static int slot(String key) {
