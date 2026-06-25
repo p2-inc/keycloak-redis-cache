@@ -4,37 +4,46 @@ import static io.phasetwo.keycloak.redis.RedisMetrics.*;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Tag;
 import io.phasetwo.keycloak.common.ExpirableEntity;
 import io.phasetwo.keycloak.common.ExpirationUtils;
 import io.phasetwo.keycloak.redis.connection.RedisMode;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
 import lombok.extern.jbosslog.JBossLog;
 import org.keycloak.models.AbstractKeycloakTransaction;
 import redis.clients.jedis.AbstractPipeline;
-import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
+/**
+ * Buffers reads and mutations for a single Keycloak transaction and flushes them to Redis on commit
+ * as dynamically assembled Lua scripts (see {@link LuaCommitScriptBuilder}).
+ *
+ * <p>This base owns all shared state, the read/mutate API, the {@link #commitImpl()} template, and
+ * the all-or-nothing rebase-and-retry loop. The two concrete subclasses differ only in how the
+ * commit is grouped into scripts: {@link StandaloneRedisChangelogTransaction} emits one script for
+ * the whole commit, while {@link ClusterRedisChangelogTransaction} groups by hash slot.
+ */
 @JBossLog
-public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
+public abstract class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     extends AbstractKeycloakTransaction {
 
-  private final Map<K, A> cache = Maps.newHashMap();
-  private final Map<K, A> toDelete = Maps.newHashMap();
-  private final AdapterSupplier<K, A> adapterSupplier;
-  private final UnifiedJedis jedis;
-  private final RedisMode redisMode;
-  private final String cacheName;
+  protected final Map<K, A> cache = Maps.newHashMap();
+  protected final Map<K, A> toDelete = Maps.newHashMap();
+  protected final AdapterSupplier<K, A> adapterSupplier;
+  protected final UnifiedJedis jedis;
+  protected final RedisMode redisMode;
+  protected final String cacheName;
+  protected final LuaCommitScriptBuilder<K, A> scriptBuilder;
   private final Meter.MeterProvider<Counter> counterProvider;
-  private static final int MAX_CAS_RETRIES = 3;
+  protected static final int MAX_CAS_RETRIES = 3;
 
-  public RedisChangelogTransaction(
+  protected RedisChangelogTransaction(
       String cacheName,
       UnifiedJedis jedis,
       RedisMode redisMode,
@@ -44,11 +53,43 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     this.redisMode = redisMode;
     this.adapterSupplier = adapterSupplier;
     this.counterProvider = getCacheCounterProvider();
+    this.scriptBuilder = new LuaCommitScriptBuilder<>(this::countOperation);
   }
 
-  public RedisChangelogTransaction(
+  /**
+   * Creates the transaction implementation appropriate for the server's commit constraints.
+   *
+   * <p>The choice is driven by whether the <em>server</em> enforces hash slots — i.e. rejects a
+   * cross-slot {@code EVAL} with {@code CROSSSLOT}. Slot-enforcing servers ({@link
+   * RedisMode#CLUSTER} and {@link RedisMode#MEMORY_DB}) require the per-slot strategy; a plain
+   * single-node Redis reached over {@link RedisMode#STANDALONE} or {@link RedisMode#SENTINEL} can
+   * use the single-script strategy. AWS MemoryDB is the motivating case for the dedicated mode: it
+   * is always cluster-enabled, but must be connected to as standalone through an SSM tunnel (cluster
+   * discovery returns unreachable private node addresses), so it cannot be inferred from the
+   * connection alone and is declared explicitly.
+   */
+  public static <K extends Key, A extends MapEntity<K>> RedisChangelogTransaction<K, A> create(
+      String cacheName,
+      UnifiedJedis jedis,
+      RedisMode redisMode,
+      AdapterSupplier<K, A> adapterSupplier) {
+    if (slotEnforced(redisMode)) {
+      return new ClusterRedisChangelogTransaction<>(cacheName, jedis, redisMode, adapterSupplier);
+    }
+    return new StandaloneRedisChangelogTransaction<>(cacheName, jedis, redisMode, adapterSupplier);
+  }
+
+  /**
+   * Whether the commit must be grouped by hash slot. True for the slot-enforcing modes {@link
+   * RedisMode#CLUSTER} and {@link RedisMode#MEMORY_DB}.
+   */
+  static boolean slotEnforced(RedisMode redisMode) {
+    return redisMode == RedisMode.CLUSTER || redisMode == RedisMode.MEMORY_DB;
+  }
+
+  public static <K extends Key, A extends MapEntity<K>> RedisChangelogTransaction<K, A> create(
       String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
-    this(cacheName, jedis, RedisMode.STANDALONE, adapterSupplier);
+    return create(cacheName, jedis, RedisMode.STANDALONE, adapterSupplier);
   }
 
   /** Count an operation in metrics */
@@ -179,120 +220,95 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       return;
     }
 
+    // Partition into writes (dirty, not deleted) and deletes (marked, or queued in toDelete),
+    // deduped by key. Matches the selection of the previous two commit loops.
+    Map<K, A> writes = Maps.newLinkedHashMap();
+    Map<K, A> deletes = Maps.newLinkedHashMap();
     for (A model : Lists.newArrayList(cache.values())) {
-      if (model.isMarkedForDelete() || toDelete.containsKey(model.getKey())) {
-        deleteEntity(model);
-        toDelete.remove(model.getKey());
+      K key = model.getKey();
+      if (model.isMarkedForDelete() || toDelete.containsKey(key)) {
+        deletes.put(key, model);
       } else if (model.isDirty()) {
-        writeEntityWithRetries(model);
+        writes.put(key, model);
       }
     }
-
     for (A model : Lists.newArrayList(toDelete.values())) {
-      deleteEntity(model);
-      toDelete.remove(model.getKey());
+      deletes.putIfAbsent(model.getKey(), model);
     }
+
+    if (writes.isEmpty() && deletes.isEmpty()) {
+      log.trace("no dirty entities to commit. skipping transaction...");
+      return;
+    }
+
+    flushCommit(Lists.newArrayList(writes.values()), Lists.newArrayList(deletes.values()));
+    toDelete.clear();
   }
 
-  private void deleteEntity(A model) {
-    String key = model.getKey().key();
-    Map<String, String> indexes = model.getSecondaryIndexes();
+  /** Builds and executes the commit scripts for the given partition. */
+  protected abstract void flushCommit(List<A> writes, List<A> deletes);
 
-    if (redisMode != RedisMode.CLUSTER && !indexes.isEmpty()) {
-      try (AbstractTransaction txn = jedis.multi()) {
-        log.tracef("[redis] DEL %s", key);
-        txn.del(key);
-        countOperation(DEL);
-        for (Map.Entry<String, String> index : indexes.entrySet()) {
-          log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
-          txn.srem(index.getKey(), index.getValue());
-          countOperation(SREM);
+  /**
+   * Evaluates each CAS-protected script with all-or-nothing semantics, rebasing and rebuilding any
+   * script that reports a version conflict until it succeeds or {@link #MAX_CAS_RETRIES} is hit.
+   *
+   * <p>Because each script applies nothing on conflict, a successful script is dropped and never
+   * re-run, so already-incremented versions can never cause a false conflict.
+   */
+  protected final void runWithRetries(List<LuaCommitScriptBuilder.BuiltScript<K, A>> initial) {
+    List<LuaCommitScriptBuilder.BuiltScript<K, A>> scripts = initial;
+    for (int attempt = 0; ; attempt++) {
+      List<LuaCommitScriptBuilder.BuiltScript<K, A>> pending = Lists.newArrayList();
+      for (LuaCommitScriptBuilder.BuiltScript<K, A> s : scripts) {
+        List<String> conflicts = evalConflicts(s);
+        if (conflicts.isEmpty()) {
+          continue;
         }
-        txn.exec();
+        if (attempt == MAX_CAS_RETRIES) {
+          throw new IllegalStateException(
+              String.format(
+                  "Redis CAS failed for keys %s after %d attempts", conflicts, attempt + 1));
+        }
+        log.warnf(
+            "[redis] CAS conflict for keys %s (attempt %d). rebasing and retrying.",
+            conflicts, attempt + 1);
+        Set<String> conflictKeys = Sets.newHashSet(conflicts);
+        List<A> rebased = Lists.newArrayList();
+        for (A w : s.writeEntities()) {
+          rebased.add(conflictKeys.contains(w.getKey().key()) ? rebaseModel(w) : w);
+        }
+        pending.add(scriptBuilder.render(rebased, s.deleteEntities(), s.foldSlot()));
       }
-    } else {
-      log.tracef("[redis] DEL %s", key);
-      jedis.del(key);
-      countOperation(DEL);
-      for (Map.Entry<String, String> index : indexes.entrySet()) {
-        log.tracef("[redis] SREM %s %s", index.getKey(), index.getValue());
-        jedis.srem(index.getKey(), index.getValue());
-        countOperation(SREM);
-      }
-    }
-  }
-
-  private void writeEntityWithRetries(A originalModel) {
-    A attemptModel = originalModel;
-
-    for (int attempt = 0; attempt <= MAX_CAS_RETRIES; attempt++) {
-      RedisHashCas.CasInvocation invocation = writeEntityOnce(attemptModel);
-      long code = invocation.getResponseCode();
-      if (code == 1L) {
-        log.tracef("[redis] CAS hsetex returned success code %s. %s", code, invocation);
-        addSecondaryIndexes(attemptModel);
+      if (pending.isEmpty()) {
         return;
       }
-
-      log.warnf("[redis] CAS hsetex returned non-success code %s. %s", code, invocation);
-      if ((code != 0L && code != -1L) || attempt == MAX_CAS_RETRIES) {
-        throw new IllegalStateException(
-            String.format(
-                "Redis CAS failed for key %s after %d attempts with code %d",
-                attemptModel.getKey().key(), attempt + 1, code));
-      }
-
-      attemptModel = rebaseModel(originalModel);
+      scripts = pending;
     }
   }
 
-  private RedisHashCas.CasInvocation writeEntityOnce(A model) {
-    Long expireAtMs = null;
-    if (model instanceof ExpirableEntity) {
-      ExpirableEntity e = (ExpirableEntity) model;
-      expireAtMs = e.getExpiration();
+  /** Evaluates scripts that are not CAS-protected (e.g. cross-slot index updates) once each. */
+  protected final void evalAll(List<LuaCommitScriptBuilder.BuiltScript<K, A>> scripts) {
+    for (LuaCommitScriptBuilder.BuiltScript<K, A> s : scripts) {
+      evalConflicts(s);
     }
-
-    RedisHashCas cas = new RedisHashCas(jedis);
-    RedisHashCas.CasInvocation invocation =
-        cas.hsetex(
-            model.getKey().key(),
-            model.getVersion(),
-            expireAtMs,
-            model.getDirtyFields(),
-            model.getDeletedFields());
-    countOperation(HSETEX);
-    if (!model.getDeletedFields().isEmpty()) {
-      countOperation(HDEL);
-    }
-    return invocation;
   }
 
-  private void addSecondaryIndexes(A model) {
-    Map<String, String> indexes = model.getSecondaryIndexes();
-    List<Map.Entry<String, String>> validIndexes =
-        indexes.entrySet().stream()
-            .filter(e -> e.getKey() != null && e.getValue() != null)
-            .collect(Collectors.toList());
-
-    if (validIndexes.isEmpty()) return;
-
-    if (redisMode != RedisMode.CLUSTER) {
-      try (AbstractTransaction txn = jedis.multi()) {
-        for (Map.Entry<String, String> index : validIndexes) {
-          log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
-          txn.sadd(index.getKey(), index.getValue());
-          countOperation(SADD);
-        }
-        txn.exec();
-      }
-    } else {
-      for (Map.Entry<String, String> index : validIndexes) {
-        log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
-        jedis.sadd(index.getKey(), index.getValue());
-        countOperation(SADD);
+  @SuppressWarnings("unchecked")
+  private List<String> evalConflicts(LuaCommitScriptBuilder.BuiltScript<K, A> s) {
+    log.tracef("[redis] EVAL keys=%s args=%s", s.keys(), s.args());
+    Object result = jedis.eval(s.lua(), s.keys(), s.args());
+    if (!(result instanceof List)) {
+      return List.of();
+    }
+    List<String> conflicts = Lists.newArrayList();
+    for (Object o : (List<Object>) result) {
+      if (o instanceof byte[]) {
+        conflicts.add(new String((byte[]) o, StandardCharsets.UTF_8));
+      } else if (o != null) {
+        conflicts.add(String.valueOf(o));
       }
     }
+    return conflicts;
   }
 
   private A rebaseModel(A originalModel) {

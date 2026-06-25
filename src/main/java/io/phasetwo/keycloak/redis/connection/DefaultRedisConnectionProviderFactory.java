@@ -4,7 +4,6 @@ import static io.phasetwo.keycloak.redis.RedisMetrics.*;
 
 import com.google.auto.service.AutoService;
 import io.phasetwo.keycloak.common.IsSupported;
-import io.phasetwo.keycloak.redis.RedisHashCas;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -94,8 +93,6 @@ public class DefaultRedisConnectionProviderFactory
 
     jedisClient = buildClient(mode, nodes, masterName, clientConfig, poolConfig);
 
-    RedisHashCas.initialize(jedisClient);
-
     addClientMetrics(jedisClient);
   }
 
@@ -150,6 +147,8 @@ public class DefaultRedisConnectionProviderFactory
         return RedisMode.SENTINEL;
       case "cluster":
         return RedisMode.CLUSTER;
+      case "memory-db":
+        return RedisMode.MEMORY_DB;
       default:
         log.warnf("Unknown redis mode '%s', defaulting to standalone", modeValue);
         return RedisMode.STANDALONE;
@@ -225,7 +224,7 @@ public class DefaultRedisConnectionProviderFactory
       String masterName,
       JedisClientConfig clientConfig,
       GenericObjectPoolConfig<Connection> poolConfig) {
-    if (mode == RedisMode.CLUSTER) {
+    if (mode == RedisMode.CLUSTER || mode == RedisMode.MEMORY_DB) {
       return RedisClusterClient.builder()
           .nodes(nodes)
           .clientConfig(clientConfig)
