@@ -224,7 +224,7 @@ public class DefaultRedisConnectionProviderFactory
       String masterName,
       JedisClientConfig clientConfig,
       GenericObjectPoolConfig<Connection> poolConfig) {
-    if (mode == RedisMode.CLUSTER) {
+    if (mode == RedisMode.CLUSTER || mode == RedisMode.MEMORY_DB) {
       return RedisClusterClient.builder()
           .nodes(nodes)
           .clientConfig(clientConfig)

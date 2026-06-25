@@ -22,7 +22,7 @@ import org.keycloak.common.util.Time;
 import org.keycloak.device.DeviceActivityManager;
 import org.keycloak.models.*;
 import org.keycloak.models.utils.KeycloakModelUtils;
-import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.AbstractPipeline;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
@@ -264,7 +264,7 @@ public class RedisUserSessionProvider implements UserSessionProvider {
   private Stream<RedisUserSessionAdapter> getUserSessionsStreamByIndexKey(
       String[] indexKeys, RealmModel realm, boolean offline) {
     log.tracef("[redis] SMEMBERS %s", indexKeys);
-    try (Pipeline pipeline = (Pipeline) jedis.pipelined()) {
+    try (AbstractPipeline pipeline = jedis.pipelined()) {
       List<Response<Set<String>>> responses = Lists.newArrayList();
 
       for (String indexKey : indexKeys) {
