@@ -10,6 +10,7 @@ import lombok.extern.jbosslog.JBossLog;
 import redis.clients.jedis.AbstractTransaction;
 import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
+import redis.clients.jedis.exceptions.JedisNoScriptException;
 
 /** */
 @JBossLog
@@ -195,8 +196,29 @@ return 1
       return new CasInvocation(response, null, key, expectedVersion, expireAtMs, updates);
     }
 
-    Object result = client.evalsha(scriptSha, keys, args);
+    Object result = evalshaResilient(keys, args);
     return new CasInvocation(null, result, key, expectedVersion, expireAtMs, updates);
+  }
+
+  /**
+   * Runs the CAS script via EVALSHA, recovering from an empty script cache.
+   *
+   * <p>Redis does not replicate the script cache (SCRIPT LOAD) to replicas, only the effects of a
+   * script's execution. After a Sentinel failover the promoted master therefore has no cached
+   * script and EVALSHA fails with NOSCRIPT. We fall back to EVAL with the full body: it executes
+   * and caches the script on the current master. Because the cache key is SHA1(body), it is cached
+   * under the same {@link #scriptSha} we already hold, so subsequent EVALSHA calls succeed without
+   * reloading.
+   */
+  private Object evalshaResilient(List<String> keys, List<String> args) {
+    try {
+      return client.evalsha(scriptSha, keys, args);
+    } catch (JedisNoScriptException e) {
+      log.warn(
+          "[redis] EVALSHA returned NOSCRIPT (script cache empty, likely after a Sentinel"
+              + " failover). Falling back to EVAL to reload the script on the current master.");
+      return client.eval(LUA_SCRIPT, keys, args);
+    }
   }
 
   public CasInvocation hsetex(
