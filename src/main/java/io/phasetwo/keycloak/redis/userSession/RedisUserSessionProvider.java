@@ -111,13 +111,11 @@ public class RedisUserSessionProvider implements UserSessionProvider {
 
   /** Convert the UserSessionModel to a RedisUserSessionAdapter or load it from the transaction */
   private RedisUserSessionAdapter getUserSessionAdapter(UserSessionModel userSession) {
-    RedisUserSessionAdapter userSessionEntity;
     if (userSession instanceof RedisUserSessionAdapter) {
-      userSessionEntity = (RedisUserSessionAdapter) userSession;
-    } else {
-      userSessionEntity = userSessionTrx.getIfPresent(new UserSessionKey(userSession.getId()));
+      return (RedisUserSessionAdapter) userSession;
     }
-    return userSessionEntity;
+    // KC may wrap the adapter (e.g. UserSessionUtil$1 during token-exchange:v2)
+    return getUserSessionById(userSession.getId());
   }
 
   /**

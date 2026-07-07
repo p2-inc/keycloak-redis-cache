@@ -802,6 +802,152 @@ public class UserSessionProviderModelTest extends KeycloakModelTest {
   }
 
   @Test
+  public void testCreateClientSessionWithWrappedTransientSession() {
+    // Reproduces the token-exchange-external-internal:v2 failure where KC wraps the
+    // RedisUserSessionAdapter in an anonymous UserSessionUtil$1 delegate before calling
+    // createClientSession, causing the instanceof check in getUserSessionAdapter to fail.
+    withRealm(
+        realmId,
+        (s, r) -> {
+          UserModel user = s.users().getUserByUsername(r, "user1");
+          ClientModel client = r.getClientByClientId("test-app");
+
+          UserSessionModel transientSession =
+              s.sessions()
+                  .createUserSession(
+                      null,
+                      r,
+                      user,
+                      "user1",
+                      "127.0.0.1",
+                      "token-exchange",
+                      false,
+                      null,
+                      null,
+                      UserSessionModel.SessionPersistenceState.TRANSIENT);
+
+          // Wrap in a plain delegate — not instanceof RedisUserSessionAdapter
+          UserSessionModel wrapper =
+              new UserSessionModel() {
+                public String getId() {
+                  return transientSession.getId();
+                }
+
+                public RealmModel getRealm() {
+                  return transientSession.getRealm();
+                }
+
+                public UserSessionModel.SessionPersistenceState getPersistenceState() {
+                  return transientSession.getPersistenceState();
+                }
+
+                public String getBrokerSessionId() {
+                  return transientSession.getBrokerSessionId();
+                }
+
+                public String getBrokerUserId() {
+                  return transientSession.getBrokerUserId();
+                }
+
+                public UserModel getUser() {
+                  return transientSession.getUser();
+                }
+
+                public String getLoginUsername() {
+                  return transientSession.getLoginUsername();
+                }
+
+                public String getIpAddress() {
+                  return transientSession.getIpAddress();
+                }
+
+                public String getAuthMethod() {
+                  return transientSession.getAuthMethod();
+                }
+
+                public boolean isRememberMe() {
+                  return transientSession.isRememberMe();
+                }
+
+                public int getStarted() {
+                  return transientSession.getStarted();
+                }
+
+                public int getLastSessionRefresh() {
+                  return transientSession.getLastSessionRefresh();
+                }
+
+                public void setLastSessionRefresh(int seconds) {
+                  transientSession.setLastSessionRefresh(seconds);
+                }
+
+                public boolean isOffline() {
+                  return transientSession.isOffline();
+                }
+
+                public Map<String, AuthenticatedClientSessionModel> getAuthenticatedClientSessions() {
+                  return transientSession.getAuthenticatedClientSessions();
+                }
+
+                public void removeAuthenticatedClientSessions(Collection<String> removedClientUUIDS) {
+                  transientSession.removeAuthenticatedClientSessions(removedClientUUIDS);
+                }
+
+                public String getNote(String name) {
+                  return transientSession.getNote(name);
+                }
+
+                public void setNote(String name, String value) {
+                  transientSession.setNote(name, value);
+                }
+
+                public void removeNote(String name) {
+                  transientSession.removeNote(name);
+                }
+
+                public Map<String, String> getNotes() {
+                  return transientSession.getNotes();
+                }
+
+                public UserSessionModel.State getState() {
+                  return transientSession.getState();
+                }
+
+                public void setState(UserSessionModel.State state) {
+                  transientSession.setState(state);
+                }
+
+                public void restartSession(
+                    RealmModel realm,
+                    UserModel user,
+                    String loginUsername,
+                    String ipAddress,
+                    String authMethod,
+                    boolean rememberMe,
+                    String brokerSessionId,
+                    String brokerUserId) {
+                  transientSession.restartSession(
+                      realm,
+                      user,
+                      loginUsername,
+                      ipAddress,
+                      authMethod,
+                      rememberMe,
+                      brokerSessionId,
+                      brokerUserId);
+                }
+              };
+
+          AuthenticatedClientSessionModel clientSession =
+              s.sessions().createClientSession(r, client, wrapper);
+
+          assertNotNull(clientSession);
+          assertEquals(client.getId(), clientSession.getClient().getId());
+          return null;
+        });
+  }
+
+  @Test
   public void testGetByClient() {
     withRealm(
         realmId,
