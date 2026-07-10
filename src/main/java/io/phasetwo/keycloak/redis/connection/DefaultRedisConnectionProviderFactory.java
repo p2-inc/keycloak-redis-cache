@@ -94,7 +94,9 @@ public class DefaultRedisConnectionProviderFactory
 
     jedisClient = buildClient(mode, nodes, masterName, clientConfig, poolConfig);
 
-    RedisHashCas.initialize(jedisClient);
+    if (mode != RedisMode.MEMORYDB_MULTIREGION) {
+      RedisHashCas.initialize(jedisClient);
+    }
 
     addClientMetrics(jedisClient);
   }
@@ -150,6 +152,8 @@ public class DefaultRedisConnectionProviderFactory
         return RedisMode.SENTINEL;
       case "cluster":
         return RedisMode.CLUSTER;
+      case "memorydb-multiregion":
+        return RedisMode.MEMORYDB_MULTIREGION;
       default:
         log.warnf("Unknown redis mode '%s', defaulting to standalone", modeValue);
         return RedisMode.STANDALONE;
@@ -225,7 +229,7 @@ public class DefaultRedisConnectionProviderFactory
       String masterName,
       JedisClientConfig clientConfig,
       GenericObjectPoolConfig<Connection> poolConfig) {
-    if (mode == RedisMode.CLUSTER) {
+    if (mode == RedisMode.CLUSTER || mode == RedisMode.MEMORYDB_MULTIREGION) {
       return RedisClusterClient.builder()
           .nodes(nodes)
           .clientConfig(clientConfig)

@@ -71,10 +71,10 @@ end
 redis.call("HINCRBY", KEYS[1], "version", 1)
 
 -- Optional expiration
-local expireAt = ARGV[2]
-if expireAt and expireAt ~= "" and expireAt ~= "0" then
-   redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
-end
+-- local expireAt = ARGV[2]
+-- if expireAt and expireAt ~= "" and expireAt ~= "0" then
+--   redis.call("PEXPIREAT", KEYS[1], tonumber(expireAt))
+-- end
 
 return 1
         """;
@@ -224,5 +224,60 @@ return 1
   public CasInvocation hsetex(
       String key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
     return hsetex(key, expectedVersion, expireAtMs, updates, Set.of());
+  }
+
+  /**
+   * Non-atomic CAS for MemoryDB Multi-Region, where Lua scripting is unavailable.
+   * Performs HGET → version check → HSET/HDEL/HINCRBY as individual commands.
+   * CRDT sub-key LWW handles concurrent writes from different regions; the existing
+   * retry loop in the caller handles same-region version conflicts.
+   */
+  public CasInvocation hsetexDirect(
+      String key,
+      long expectedVersion,
+      Long expireAtMs,
+      Map<String, String> updates,
+      Set<String> deletedFields) {
+    if (client == null) {
+      throw new IllegalStateException("hsetexDirect requires UnifiedJedis client");
+    }
+
+    log.tracef(
+        "[redis] (direct CAS version:%d) (exp:%d) HGET/HSET/HDEL %s updates=%s deletes=%s",
+        expectedVersion, expireAtMs, key, updates, deletedFields);
+
+    String currentVersionStr = client.hget(key, "version");
+
+    if (currentVersionStr == null) {
+      if (expectedVersion != 0L) {
+        return new CasInvocation(null, -1L, key, expectedVersion, expireAtMs, updates);
+      }
+      currentVersionStr = "0";
+    }
+
+    if (!String.valueOf(expectedVersion).equals(currentVersionStr)) {
+      return new CasInvocation(null, 0L, key, expectedVersion, expireAtMs, updates);
+    }
+
+    if (!updates.isEmpty()) {
+      Map<String, String> normalized = new LinkedHashMap<>();
+      updates.forEach(
+          (field, value) ->
+              normalized.put(field, value == null ? MapEntity.NULL_SENTINEL : value));
+      client.hset(key, normalized);
+    }
+
+    if (!deletedFields.isEmpty()) {
+      client.hdel(key, deletedFields.toArray(new String[0]));
+    }
+
+    client.hincrBy(key, "version", 1);
+
+    return new CasInvocation(null, 1L, key, expectedVersion, expireAtMs, updates);
+  }
+
+  public CasInvocation hsetexDirect(
+      String key, long expectedVersion, Long expireAtMs, Map<String, String> updates) {
+    return hsetexDirect(key, expectedVersion, expireAtMs, updates, Set.of());
   }
 }

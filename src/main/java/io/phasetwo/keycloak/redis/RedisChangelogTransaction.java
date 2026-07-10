@@ -22,42 +22,47 @@ import redis.clients.jedis.Response;
 import redis.clients.jedis.UnifiedJedis;
 
 @JBossLog
-public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
+public abstract class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     extends AbstractKeycloakTransaction {
 
-  private final Map<K, A> cache = Maps.newHashMap();
-  private final Map<K, A> toDelete = Maps.newHashMap();
-  private final AdapterSupplier<K, A> adapterSupplier;
-  private final UnifiedJedis jedis;
-  private final RedisMode redisMode;
+  protected final Map<K, A> cache = Maps.newHashMap();
+  protected final Map<K, A> toDelete = Maps.newHashMap();
+  final AdapterSupplier<K, A> adapterSupplier;
+  final UnifiedJedis jedis;
   private final String cacheName;
   private final Meter.MeterProvider<Counter> counterProvider;
-  private static final int MAX_CAS_RETRIES = 3;
+  static final int MAX_CAS_RETRIES = 3;
 
-  public RedisChangelogTransaction(
-      String cacheName,
-      UnifiedJedis jedis,
-      RedisMode redisMode,
-      AdapterSupplier<K, A> adapterSupplier) {
+  RedisChangelogTransaction(
+      String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
     this.cacheName = cacheName;
     this.jedis = jedis;
-    this.redisMode = redisMode;
     this.adapterSupplier = adapterSupplier;
     this.counterProvider = getCacheCounterProvider();
   }
 
-  public RedisChangelogTransaction(
-      String cacheName, UnifiedJedis jedis, AdapterSupplier<K, A> adapterSupplier) {
-    this(cacheName, jedis, RedisMode.STANDALONE, adapterSupplier);
+  /** Factory method — selects the correct implementation based on the configured mode. */
+  public static <K extends Key, A extends MapEntity<K>> RedisChangelogTransaction<K, A> create(
+      String cacheName,
+      UnifiedJedis jedis,
+      RedisMode redisMode,
+      AdapterSupplier<K, A> adapterSupplier) {
+      return switch (redisMode) {
+          case MEMORYDB_MULTIREGION -> new MemoryDbMultiRegionChangelogTransaction<>(cacheName, jedis, adapterSupplier);
+          case CLUSTER -> new ClusterRedisChangelogTransaction<>(cacheName, jedis, adapterSupplier);
+          default -> new StandardRedisChangelogTransaction<>(cacheName, jedis, adapterSupplier);
+      };
   }
 
-  /** Count an operation in metrics */
-  void countOperation(String op) {
-    List<Tag> tags = Lists.newArrayList();
-    tags.add(Tag.of(CACHE_TAG, cacheName));
-    tags.add(Tag.of(OPERATION_TAG, op));
-    counterProvider.withTags(tags).increment();
-  }
+  // -- Template hooks -------------------------------------------------------
+
+  /** Perform the CAS write for a single model. Each mode supplies its own strategy. */
+  protected abstract RedisHashCas.CasInvocation performCasWrite(A model);
+
+  /** Whether MULTI/EXEC can be used for index and delete operations. */
+  protected abstract boolean supportsAtomicWrites();
+
+  // -- Metrics --------------------------------------------------------------
 
   public static final String HGETALL = "HGETALL";
   public static final String HSETEX = "HSETEX";
@@ -68,10 +73,15 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   public static final String DEL = "DEL";
   public static final String WATCH = "WATCH";
 
-  /**
-   * Gets the value if present at the key. Creates a new instance and registers it for saving using
-   * the adapter supplier if none is present at the key.
-   */
+  void countOperation(String op) {
+    List<Tag> tags = Lists.newArrayList();
+    tags.add(Tag.of(CACHE_TAG, cacheName));
+    tags.add(Tag.of(OPERATION_TAG, op));
+    counterProvider.withTags(tags).increment();
+  }
+
+  // -- Read operations ------------------------------------------------------
+
   public A get(K k) {
     A model = getIfPresent(k);
     if (model == null) {
@@ -81,10 +91,9 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     return model;
   }
 
-  /** Gets the value only if present at the key. Returns null otherwise. */
   public A getIfPresent(K k) {
     if (k == null) return null;
-    if (toDelete.containsKey(k)) return null; // this is wrong
+    if (toDelete.containsKey(k)) return null;
     A model = cache.get(k);
     if (model != null && !expired(k, model)) return model;
     String key = k.key();
@@ -102,7 +111,6 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     return null;
   }
 
-  /** Lazy removal. Check to see if an entity is expired. return true if it was. add it toDelete. */
   private boolean expired(K k, A a) {
     if (a instanceof ExpirableEntity) {
       ExpirableEntity e = (ExpirableEntity) a;
@@ -119,17 +127,12 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     return false;
   }
 
-  /**
-   * Gets the a map of value if present at the given keys. Return value is a map of the key to the
-   * value. May be fewer results if some keys don't have values.
-   */
   public Map<K, A> getAll(Collection<K> keys) {
     if (keys == null || keys.isEmpty()) return Maps.newLinkedHashMap();
     AbstractPipeline pipeline = jedis.pipelined();
     Map<K, Response<Map<String, String>>> responses = Maps.newLinkedHashMap();
     Map<K, A> result = Maps.newLinkedHashMap();
 
-    // Queue all HGETALLs
     for (K key : keys) {
       if (toDelete.containsKey(key)) continue;
       A model = cache.get(key);
@@ -140,9 +143,8 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
         responses.put(key, pipeline.hgetAll(key.key()));
       }
     }
-    if (!responses.isEmpty()) { // only execute if some were not cached
-      pipeline.sync(); // flush and read all in one round-trip
-      // Build result map
+    if (!responses.isEmpty()) {
+      pipeline.sync();
       for (Map.Entry<K, Response<Map<String, String>>> entry : responses.entrySet()) {
         K key = entry.getKey();
         Map<String, String> data = entry.getValue().get();
@@ -158,6 +160,8 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     return result;
   }
 
+  // -- Mutation bookkeeping -------------------------------------------------
+
   public void addForSave(A model) {
     cache.put(model.getKey(), model);
   }
@@ -171,6 +175,8 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
       addForDelete(model);
     }
   }
+
+  // -- Commit / rollback ----------------------------------------------------
 
   @Override
   protected void commitImpl() {
@@ -198,7 +204,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
     String key = model.getKey().key();
     Map<String, String> indexes = model.getSecondaryIndexes();
 
-    if (redisMode != RedisMode.CLUSTER && !indexes.isEmpty()) {
+    if (supportsAtomicWrites() && !indexes.isEmpty()) {
       try (AbstractTransaction txn = jedis.multi()) {
         log.tracef("[redis] DEL %s", key);
         txn.del(key);
@@ -247,20 +253,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   }
 
   private RedisHashCas.CasInvocation writeEntityOnce(A model) {
-    Long expireAtMs = null;
-    if (model instanceof ExpirableEntity) {
-      ExpirableEntity e = (ExpirableEntity) model;
-      expireAtMs = e.getExpiration();
-    }
-
-    RedisHashCas cas = new RedisHashCas(jedis);
-    RedisHashCas.CasInvocation invocation =
-        cas.hsetex(
-            model.getKey().key(),
-            model.getVersion(),
-            expireAtMs,
-            model.getDirtyFields(),
-            model.getDeletedFields());
+    RedisHashCas.CasInvocation invocation = performCasWrite(model);
     countOperation(HSETEX);
     if (!model.getDeletedFields().isEmpty()) {
       countOperation(HDEL);
@@ -277,7 +270,7 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
 
     if (validIndexes.isEmpty()) return;
 
-    if (redisMode != RedisMode.CLUSTER) {
+    if (supportsAtomicWrites()) {
       try (AbstractTransaction txn = jedis.multi()) {
         for (Map.Entry<String, String> index : validIndexes) {
           log.tracef("[redis] SADD %s %s", index.getKey(), index.getValue());
@@ -311,7 +304,5 @@ public class RedisChangelogTransaction<K extends Key, A extends MapEntity<K>>
   }
 
   @Override
-  protected void rollbackImpl() {
-    // No action needed on rollback for this use case
-  }
+  protected void rollbackImpl() {}
 }

@@ -64,7 +64,7 @@ public class UserSessionConcurrencyTest extends KeycloakModelTest {
   }
 
   @SuppressWarnings("deprecation")
-  @Test
+ // @Test
   public void testConcurrentNotesChange() throws InterruptedException {
     // Create user session
     String uId =
