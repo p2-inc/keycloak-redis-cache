@@ -42,6 +42,7 @@
     <main.java.package>io.phasetwo.keycloak.redis</main.java.package>
     <junit.version>5.8.2</junit.version>
     <keycloak.version>26.8.0</keycloak.version>
+    <byte-buddy.version>1.18.8</byte-buddy.version>
     <lombok.version>1.18.42</lombok.version>
     <auto-service.version>1.1.1</auto-service.version>
     <testcontainers.version>1.21.4</testcontainers.version>
@@ -384,6 +385,20 @@
           <artifactId>keycloak-crypto-fips1402</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <!--
+      Hibernate's bytecode provider. Declared explicitly because it stopped arriving
+      transitively at Keycloak 26.8: on 26.7.1 it resolved through
+      keycloak-model-jpa -> hibernate-core 7.2.14 -> byte-buddy, and on 26.8.0
+      (hibernate-core 7.4.9) it is absent from the resolved test classpath, which fails
+      the model testsuite with ServiceConfigurationError on BytecodeProviderImpl.
+      Version tracks what hibernate-core declares.
+    -->
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy</artifactId>
+      <version>${byte-buddy.version}</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
