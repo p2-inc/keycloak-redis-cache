@@ -1,4 +1,4 @@
-FROM quay.io/phasetwo/keycloak-crdb:26.7.1 AS builder
+FROM quay.io/phasetwo/keycloak-crdb:26.8.0 AS builder
 
 ENV KC_FEATURES=stateless
 ENV KC_SPI_DATASTORE_PROVIDER=redis
@@ -8,7 +8,7 @@ COPY ./target/*withdeps.jar /opt/keycloak/providers/
 
 RUN /opt/keycloak/bin/kc.sh --verbose build
 
-FROM quay.io/phasetwo/keycloak-crdb:26.7.1
+FROM quay.io/phasetwo/keycloak-crdb:26.8.0
 
 USER 1000
 
